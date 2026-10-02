@@ -1,0 +1,16 @@
+{
+  "name": "fieldnote-scheduler",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "dev": "node scripts/dev.mjs",
+    "db:generate": "echo \"Install drizzle-kit and drizzle-orm in an unrestricted development environment to regenerate migrations.\"",
+    "validate": "node scripts/validate-artifact.mjs"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  }
+}
