@@ -1,10 +1,10 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 const project=JSON.parse(await readFile('site/project.json','utf8'));
-const types={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',svg:'image/svg+xml',webp:'image/webp'};
+const types={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',svg:'image/svg+xml',webp:'image/webp',ttf:'font/ttf'};
 const assets={};
-for(const name of ['index.html','site.css','site.js','favicon.svg','hero.webp']){
- const body=await readFile('site/'+name);const ext=name.split('.').pop(),binary=ext==='webp';
+for(const name of ['index.html','site.css','site.js','favicon.svg','hero.webp','scene.js','manrope.ttf','manrope-bold.ttf']){
+ const body=await readFile('site/'+name);const ext=name.split('.').pop(),binary=['webp','ttf'].includes(ext);
  assets[name==='index.html'?'/':'/site/'+name]={body:binary?body.toString('base64'):body.toString('utf8'),type:types[ext],binary,hash:createHash('sha256').update(body).digest('hex')};
 }
 let code=await readFile('dist/server/index.js','utf8');

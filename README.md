@@ -49,7 +49,7 @@ When the owner configures PAYPAL_MODE=sandbox, PAYPAL_CLIENT_ID, and PAYPAL_CLIE
 
 Webhook testing requires a reachable, signature-verified listener and an authenticated application hosting design. Foreground capture can still reconcile payment when the app is open.
 
-No PayPal credentials were supplied. No PayPal sandbox account or real payment was accessed. Provider transport tests use deterministic in-process mocks, not live provider calls. Refunds and post-capture cancellation of sandbox bookings are intentionally blocked until a real refund workflow exists.
+Sandbox credentials were supplied privately. PayPal sandbox authentication succeeded; no completed sandbox payment is claimed yet. Provider transport tests use deterministic in-process mocks, not live provider calls. Refunds and post-capture cancellation of sandbox bookings are intentionally blocked until a real refund workflow exists.
 
 Official API references:
 - https://developer.paypal.com/api/orders/v2
@@ -71,7 +71,7 @@ AI_FALLBACK_MAX_PROMPT_PRICE=0.02
 AI_FALLBACK_MAX_COMPLETION_PRICE=0.50
 ```
 
-No credentials are included or configured. The old `OPENAI_API_KEY` and `AI_MODE=openai` no longer activate an adapter. A key alone does not enable AI: `AI_MODE=openrouter` is also required. `.env` files remain ignored. Configure the base URL only on the server using a trusted HTTPS OpenRouter-compatible endpoint; credentials in URLs, query strings and redirects are rejected. Never put keys in browser code or a public environment variable.
+No credentials are included in source control. Optional credentials are held in ignored local configuration and server-only deployment bindings. The old `OPENAI_API_KEY` and `AI_MODE=openai` no longer activate an adapter. A key alone does not enable AI: `AI_MODE=openrouter` is also required. `.env` files remain ignored. Configure the base URL only on the server using a trusted HTTPS OpenRouter-compatible endpoint; credentials in URLs, query strings and redirects are rejected. Never put keys in browser code or a public environment variable.
 
 **Synthetic data only.** No real customer, personal, account, capture, payment or sensitive financial information may be entered or sent. The [stealth model terms](https://openrouter.ai/terms/stealth) restrict sensitive inputs; its anonymous provider may retain prompts. This integration is a demonstration, not a production customer-data workflow. The input restrictions below apply to both primary and paid fallback.
 
@@ -83,7 +83,7 @@ The primary always has a zero-price provider filter, including when its model is
 
 There are at most two free-primary attempts for transient HTTP/transport failures and one opted-in paid attempt, each with a 6-second timeout and 256-token output limit (1024 total tokens for the explicitly configured free Liquid reasoning model). Inputs and response bytes are bounded. Malformed JSON, extra fields, tool calls, refusals, truncated output and invalid values are rejected. Errors shown to users contain no provider bodies, keys or raw transport details. Model output never authorizes a payment or changes server policy.
 
-This integration has been tested only with in-process mock transport. No live OpenRouter call, signup, credential setup, paid request, deployment or real payment has been performed. Live connectivity and browser visual QA are unverified.
+Live OpenRouter inference was observed on October 5, 2026 for a built-in synthetic example, with validated JSON and zero reported cost. Paid fallback remained disabled. Local mocks cover failure and policy boundaries. The public overview and protected workspace are deployed to this project’s custom domain. Actual completed sandbox payments and browser visual QA remain separate open verification gates.
 
 ### Scheduler input boundary
 

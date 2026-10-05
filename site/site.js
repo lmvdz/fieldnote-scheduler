@@ -1,17 +1,16 @@
-
 const config=JSON.parse(document.getElementById('flow-data').textContent);
 const buttons=[...document.querySelectorAll('[data-step]')];
 const text=document.getElementById('step-copy'),card=document.getElementById('flow-card');
-function showStep(index,announce=true){const step=config.steps[index];buttons.forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));text.querySelector('h3').textContent=step.title;text.querySelector('p').textContent=step.text;card.querySelector('.card-value').textContent=step.value;card.querySelector('.card-unit').textContent=step.unit;const rows=card.querySelector('.card-rows');rows.replaceChildren(...step.rows.map(([label,value])=>{const line=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;line.append(dt,dd);return line}));if(announce)document.getElementById('flow-status').textContent='Step '+(index+1)+': '+step.title;}
+function showStep(index){const step=config.steps[index];document.body.dataset.step=String(index);buttons.forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));text.querySelector('h3').textContent=step.title;text.querySelector('p').textContent=step.text;card.querySelector('.card-value').textContent=step.value;card.querySelector('.card-unit').textContent=step.unit;const rows=card.querySelector('.card-rows');rows.replaceChildren(...step.rows.map(([label,value])=>{const line=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;line.append(dt,dd);return line}));document.getElementById('flow-status').textContent=step.title+' '+step.value+' '+step.unit;document.dispatchEvent(new Event('motionchange'));}
 buttons.forEach((button,i)=>button.addEventListener('click',()=>showStep(i)));
-const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');const motion=document.getElementById('motion-toggle');let paused=reduced.matches;let observer;
-function updateMotion(){document.documentElement.classList.toggle('motion-paused',paused);motion.setAttribute('aria-pressed',String(paused));motion.textContent=paused?'Enable motion':'Pause motion';document.querySelectorAll('.hero-art:not(.loop-art)').forEach(image=>image.classList.toggle('motion',!paused));}
+const reduced=matchMedia('(prefers-reduced-motion: reduce)'),motion=document.getElementById('motion-toggle');let paused=reduced.matches;
+function updateMotion(){document.documentElement.classList.toggle('motion-paused',paused);motion.setAttribute('aria-pressed',String(paused));motion.textContent=paused?'Enable motion':'Pause motion';document.dispatchEvent(new Event('motionchange'));}
 motion.addEventListener('click',()=>{paused=!paused;updateMotion()});reduced.addEventListener('change',event=>{paused=event.matches;updateMotion()});updateMotion();
-if('IntersectionObserver' in window&&!reduced.matches){document.documentElement.classList.add('motion-ready');observer=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){entry.target.classList.add('visible');observer.unobserve(entry.target)}},{threshold:.08});document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));}
-
-// The final scene resolves into an exact copy of the opening frame.
-// Only deliberate pointer/touch scrolling wraps; keyboard reading and paused motion retain a normal end.
-const closing=document.getElementById('return-scene');let framePending=false,pointerScrollUntil=0,previousScrollY=window.scrollY;
-for(const type of ['wheel','touchmove'])window.addEventListener(type,()=>{pointerScrollUntil=performance.now()+900},{passive:true});
-function updateClosing(){framePending=false;if(!closing)return;const top=closing.getBoundingClientRect().top;const progress=Math.max(0,Math.min(1,1-top/innerHeight));const eased=progress*progress*(3-2*progress);closing.style.setProperty('--arrival',String(paused?1:eased));const y=window.scrollY;const focused=document.activeElement;const interactive=focused&&(closing.contains(focused)||focused.matches('input,textarea,select,[contenteditable=true]'));if(!paused&&!interactive&&performance.now()<pointerScrollUntil&&y>previousScrollY&&top<=0){const overshoot=Math.max(0,-top);document.documentElement.style.scrollBehavior='auto';window.scrollTo(0,overshoot);document.documentElement.style.removeProperty('scroll-behavior');previousScrollY=overshoot;return;}previousScrollY=y;}
-window.addEventListener('scroll',()=>{if(!framePending){framePending=true;requestAnimationFrame(updateClosing)}},{passive:true});window.addEventListener('resize',updateClosing);updateClosing();
+// Native scrolling remains in charge. Only deliberate wheel/touch movement wraps.
+// Keyboard, focused closing links, reduced motion and paused motion retain a normal end.
+const closing=document.getElementById('return-scene');let frame=0,pointerUntil=0,previous=scrollY;
+window.addEventListener('keydown',()=>{pointerUntil=0;});
+for(const type of ['wheel','touchmove'])window.addEventListener(type,()=>{pointerUntil=performance.now()+900},{passive:true});
+function loop(){frame=0;const top=closing.getBoundingClientRect().top,y=scrollY,focus=document.activeElement;const reading=focus&&(closing.contains(focus)||focus.matches('input,textarea,select,[contenteditable=true]'));
+ if(!paused&&!reading&&performance.now()<pointerUntil&&y>previous&&top<=0){const overshoot=Math.max(0,-top);document.documentElement.style.scrollBehavior='auto';window.scrollTo(0,overshoot);document.documentElement.style.removeProperty('scroll-behavior');previous=overshoot;return;}previous=y;}
+window.addEventListener('scroll',()=>{if(!frame)frame=requestAnimationFrame(loop)},{passive:true});
