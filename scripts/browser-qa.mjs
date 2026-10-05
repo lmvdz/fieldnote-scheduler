@@ -20,14 +20,14 @@ try{
  const context=await browser.newContext({viewport:{width:1440,height:1000}});const page=await context.newPage();
  page.on('pageerror',error=>report.errors.push(error.message));
  for(const viewport of [{width:1440,height:1000,name:'desktop'},{width:390,height:844,name:'mobile'},{width:320,height:740,name:'small-mobile'}]){
-  await page.setViewportSize(viewport);await page.goto(origin,{waitUntil:'networkidle'});await page.locator('h1').waitFor();await page.waitForFunction(()=>document.documentElement.dataset.scene==='ready'||document.documentElement.dataset.scene==='fallback',{timeout:20000});record(viewport.name+' 3D scene',await page.locator('html').getAttribute('data-scene')==='ready');await page.screenshot({path:root+'/'+viewport.name+'-opening.png'});
+  await page.setViewportSize(viewport);await page.goto(origin,{waitUntil:'networkidle'});await page.locator('h1').waitFor();await page.waitForFunction(()=>document.documentElement.dataset.scene==='ready'||document.documentElement.dataset.scene==='fallback',{timeout:20000});record(viewport.name+' 3D scene',await page.locator('html').getAttribute('data-scene')==='ready');await page.waitForTimeout(600);await page.screenshot({path:root+'/'+viewport.name+'-opening.png',timeout:120000});
   await page.evaluate(()=>{document.querySelectorAll('.reveal').forEach(el=>el.classList.add('visible'));});
   record(viewport.name+' no horizontal overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   for(let i=0;i<3;i++){await page.locator('button[data-step="'+i+'"]').click();assert.equal(await page.locator('button[data-step="'+i+'"]').getAttribute('aria-pressed'),'true');}
   record(viewport.name+' no decorative counters or eyebrows',await page.locator('.eyebrow,.num,.card-step').count()===0);
   record(viewport.name+' workflow steps',true);await page.locator('button[data-step="0"]').click();
   const scan=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa','wcag22aa']).analyze();report.violations.push(...scan.violations.map(v=>({viewport:viewport.name,id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary}))})));
-  await page.screenshot({path:root+'/'+viewport.name+'-workflow.png'});await page.screenshot({path:root+'/'+viewport.name+'.png',fullPage:true});
+  await page.screenshot({path:root+'/'+viewport.name+'-workflow.png',timeout:120000});await page.screenshot({path:root+'/'+viewport.name+'.png',fullPage:true,timeout:120000});
  }
  const motionContext=await browser.newContext({viewport:{width:1280,height:800},recordVideo:{dir:root+'/motion',size:{width:1280,height:800}}});const tour=await motionContext.newPage();await tour.goto(origin);await tour.waitForTimeout(1000);for(let y=0;y<4800;y+=20){await tour.evaluate(y=>window.scrollTo(0,y),y);await tour.waitForTimeout(25);}await tour.screenshot({path:root+'/sculpture-detail.png'});await motionContext.close();
  await page.setViewportSize({width:720,height:500});await page.goto(origin);record('200 percent zoom equivalent reflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));

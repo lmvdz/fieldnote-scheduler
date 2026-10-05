@@ -49,7 +49,8 @@ float terrain(vec3 p){
  return (p.y+.04-height)*.60;
 }
 vec2 map(vec3 p){
- vec2 d=nearer(sculpture(p),vec2(terrain(p),4.));
+ float bounds=length(p-vec3(0.,1.8,0.))-2.15;vec2 actor=bounds>.5?vec2(bounds,1.):sculpture(p);
+ vec2 d=nearer(actor,vec2(terrain(p),4.));
  // Low architectural terraces give each world foreground and distant depth.
  if(world==0){vec3 q=p;q.y+=.10;d=nearer(d,vec2(ring(q,3.5,.16),5.));q.y+=.06;d=nearer(d,vec2(ring(q,5.3,.22),5.));}
  else if(world==1){for(int i=0;i<4;i++){float f=float(i);vec3 q=p-vec3((mod(f,2.)-.5)*8.,.10,-3.-floor(f/2.)*4.);d=nearer(d,vec2(box(q,vec3(1.3,.18,.8),.12),5.));}}
@@ -74,8 +75,8 @@ void main(){
  vec3 rd=normalize(f*1.65+r*uv.x+u*uv.y);float t=0.;vec2 hit;bool found=false;
  for(int i=0;i<88;i++){vec3 p=ro+rd*t;hit=map(p);if(hit.x<.002){found=true;break;}t+=hit.x*.8;if(t>30.)break;}
  vec3 color=sky(rd);
- if(found){vec3 p=ro+rd*t,n=normal(p),l=normalize(vec3(-3.,6.,4.));float diffuse=max(0.,dot(n,l));float occlusion=clamp(1.-sculpture(p+n*.13).x/.13,0.,.7);float sh=shadow(p+n*.02,l);
-  if(hit.y>3.5){vec3 ground=sky(vec3(0.));float grooves=.5+.5*cos(length(p.xz)*24.);ground-=.018*grooves;float ao=exp(-length(p.xz)*length(p.xz)*.28)*.12;color=ground*(.74+.15*diffuse+.11*sh)-ao;if(hit.y>4.5)color*=.91;}
+ if(found){vec3 p=ro+rd*t,l=normalize(vec3(-3.,6.,4.));vec3 n=normal(p);float diffuse=max(0.,dot(n,l));float occlusion=hit.y<3.5?clamp(1.-sculpture(p+n*.13).x/.13,0.,.7):0.;float sh=length(p-vec3(0.,1.8,0.))<3.5?shadow(p+n*.02,l):1.;
+  if(hit.y>3.5){vec3 ground=sky(vec3(0.));float ao=exp(-length(p.xz)*length(p.xz)*.28)*.12;color=ground*(.74+.15*diffuse+.11*sh)-ao;if(hit.y>4.5)color*=.91;}
   else{vec3 base=palette(hit.y);vec3 reflected=environment(reflect(rd,n));float fresnel=.18+.65*pow(1.-max(0.,dot(-rd,n)),4.);
    float matte=hit.y<1.5?1.:0.;color=base*(mix(.22,.42,matte)+diffuse*mix(.50,.56,matte)*sh)*(1.-occlusion*.38)+reflected*mix(.35+fresnel*.35,.10,matte);
    float spec=pow(max(0.,dot(reflect(-l,n),-rd)),mix(85.,20.,matte));color+=vec3(mix(.65,.08,matte))*spec*sh;
@@ -84,7 +85,7 @@ void main(){
  }
  color=pow(max(color,0.),vec3(.92));color+=(noise(gl_FragCoord.xy)-.5)*.008;gl_FragColor=vec4(color,1.);
 }`;
-let program,locations,drawn=false,failed=false,lastDraw=0,raf=0,px=0,py=0;
+let program,locations,drawn=false,failed=false,lastDraw=0,raf=0,settle=0,interactive=false,px=0,py=0;
 function fail(error){failed=true;document.documentElement.dataset.scene='fallback';canvas.hidden=true;console.warn('3D scene unavailable; static art remains available.',error);}
 if(gl){try{
  const compile=(type,source)=>{const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));return shader;};
@@ -99,12 +100,12 @@ function state(){const h=innerHeight,y=scrollY,close=closing.offsetTop;let p=Mat
 function render(now=0){raf=0;if(failed||document.hidden)return;const paused=document.documentElement.classList.contains('motion-paused');const still=paused||reduced.matches;
  // There is no unrequested idle motion. Draw only in response to input or layout.
  if(now-lastDraw<=45&&drawn&&!still){raf=requestAnimationFrame(render);return;}
- if(now-lastDraw>45||!drawn||still){lastDraw=now;const scale=Math.min(devicePixelRatio,1.5);const w=Math.round(innerWidth*scale),h=Math.round(innerHeight*scale);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}const s=state();
+ if(now-lastDraw>45||!drawn||still){lastDraw=now;const scale=interactive?Math.min(devicePixelRatio,1)*.7:Math.min(devicePixelRatio,1.5);const w=Math.round(innerWidth*scale),h=Math.round(innerHeight*scale);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}const s=state();
   gl.uniform2f(locations.resolution,w,h);gl.uniform2f(locations.pointer,still?0:px,still?0:py);gl.uniform1f(locations.time,0);gl.uniform1f(locations.journey,still?0:s.p);gl.uniform1f(locations.spread,still?0:s.spread);gl.drawArrays(gl.TRIANGLES,0,6);
   if(!drawn){drawn=true;document.documentElement.dataset.scene='ready';}
  }
 }
-function request(){if(!raf&&!failed)raf=requestAnimationFrame(render);}
+function request(){interactive=true;clearTimeout(settle);settle=setTimeout(()=>{interactive=false;if(!raf&&!failed)raf=requestAnimationFrame(render);},180);if(!raf&&!failed)raf=requestAnimationFrame(render);}
 window.addEventListener('pointermove',e=>{px=(e.clientX/innerWidth-.5)*2;py=(e.clientY/innerHeight-.5)*2;request()},{passive:true});
 window.addEventListener('scroll',request,{passive:true});window.addEventListener('resize',request);document.addEventListener('visibilitychange',request);document.addEventListener('motionchange',request);reduced.addEventListener('change',request);
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();if(raf)cancelAnimationFrame(raf);fail('Graphics context lost');});request();
