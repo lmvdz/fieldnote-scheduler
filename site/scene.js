@@ -1,3 +1,4 @@
+(()=>{
 // Original procedural sculptures. No reference-site assets, models, or code.
 const canvas=document.getElementById('world');
 const gl=canvas.getContext('webgl',{alpha:false,antialias:false,powerPreference:'low-power',preserveDrawingBuffer:true});
@@ -36,7 +37,22 @@ vec2 sculpture(vec3 p){
  }
  return d;
 }
-vec2 map(vec3 p){return nearer(sculpture(p),vec2(p.y+.04,4.));}
+float terrain(vec3 p){
+ float d=length(p.xz),edge=smoothstep(2.8,7.,d);
+ float height=.0;
+ if(world==0){height=(.28+.23*sin(p.x*.62+p.z*.32)+.12*sin(p.z*.8))*edge;}
+ else if(world==1){height=(.19+.11*sin(p.x*.43)*sin(p.z*.53))*edge;}
+ else{height=(.19+.17*sin(d*.85+p.x*.15))*edge;}
+ return (p.y+.04-height)*.75;
+}
+vec2 map(vec3 p){
+ vec2 d=nearer(sculpture(p),vec2(terrain(p),4.));
+ // Low architectural terraces give each world foreground and distant depth.
+ if(world==0){vec3 q=p;q.y+=.10;d=nearer(d,vec2(ring(q,3.5,.16),5.));q.y+=.06;d=nearer(d,vec2(ring(q,5.3,.22),5.));}
+ else if(world==1){for(int i=0;i<4;i++){float f=float(i);vec3 q=p-vec3((mod(f,2.)-.5)*8.,.10,-3.-floor(f/2.)*4.);d=nearer(d,vec2(box(q,vec3(1.3,.18,.8),.12),5.));}}
+ else{vec3 q=p;q.y+=.09;q.xz=turn(.3)*q.xz;d=nearer(d,vec2(ring(q,3.4,.12),5.));q.x+=1.;q.z+=2.;q.y+=.10;d=nearer(d,vec2(ring(q,5.,.16),5.));}
+ return d;
+}
 vec3 normal(vec3 p){vec2 e=vec2(.002,0.);return normalize(vec3(map(p+e.xyy).x-map(p-e.xyy).x,map(p+e.yxy).x-map(p-e.yxy).x,map(p+e.yyx).x-map(p-e.yyx).x));}
 float shadow(vec3 p,vec3 l){float s=1.,t=.04;for(int i=0;i<24;i++){float h=sculpture(p+l*t).x;s=min(s,12.*h/t);t+=clamp(h,.035,.25);if(t>6.||s<.02)break;}return clamp(s,.0,1.);}
 vec3 palette(float id){
@@ -56,8 +72,8 @@ void main(){
  for(int i=0;i<88;i++){vec3 p=ro+rd*t;hit=map(p);if(hit.x<.002){found=true;break;}t+=hit.x*.8;if(t>30.)break;}
  vec3 color=sky(rd);
  if(found){vec3 p=ro+rd*t,n=normal(p),l=normalize(vec3(-3.,6.,4.));float diffuse=max(0.,dot(n,l));float occlusion=clamp(1.-sculpture(p+n*.13).x/.13,0.,.7);float sh=shadow(p+n*.02,l);
-  if(hit.y>3.5){vec3 ground=sky(vec3(0.));float rings=.5+.5*cos(length(p.xz)*3.1);ground-=.028*rings;float ao=exp(-length(p.xz)*length(p.xz)*.28)*.10;color=ground*(.86+.14*sh)-ao;}
-  else{vec3 base=palette(hit.y);vec3 reflected=environment(reflect(rd,n));float fresnel=.18+.65*pow(1.-max(0.,dot(-rd,n)),4.);color=base*(.22+diffuse*.50*sh)*(1.-occlusion*.38)+reflected*(.42+fresnel*.55);float spec=pow(max(0.,dot(reflect(-l,n),-rd)),50.);color+=vec3(1.3)*spec*sh;}
+  if(hit.y>3.5){vec3 ground=sky(vec3(0.));float grooves=.5+.5*cos(length(p.xz)*24.);ground-=.018*grooves;float ao=exp(-length(p.xz)*length(p.xz)*.28)*.12;color=ground*(.74+.15*diffuse+.11*sh)-ao;if(hit.y>4.5)color*=.91;}
+  else{vec3 base=palette(hit.y);vec3 reflected=environment(reflect(rd,n));float fresnel=.18+.65*pow(1.-max(0.,dot(-rd,n)),4.);color=base*(.22+diffuse*.50*sh)*(1.-occlusion*.38)+reflected*(.42+fresnel*.55);float spec=pow(max(0.,dot(reflect(-l,n),-rd)),50.);color+=vec3(1.3)*spec*sh;float brushed=sin(p.y*180.+p.x*60.)*sin(p.z*70.);color-=brushed*.012;}
   float fog=1.-exp(-t*t*.0018);color=mix(color,sky(rd),fog);
  }
  color=pow(max(color,0.),vec3(.92));color+=(noise(gl_FragCoord.xy)-.5)*.008;gl_FragColor=vec4(color,1.);
@@ -86,3 +102,5 @@ function request(){if(!raf&&!failed)raf=requestAnimationFrame(render);}
 window.addEventListener('pointermove',e=>{px=(e.clientX/innerWidth-.5)*2;py=(e.clientY/innerHeight-.5)*2;request()},{passive:true});
 window.addEventListener('scroll',request,{passive:true});window.addEventListener('resize',request);document.addEventListener('visibilitychange',()=>{lastTick=0;request()});document.addEventListener('motionchange',request);reduced.addEventListener('change',request);
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();if(raf)cancelAnimationFrame(raf);fail('Graphics context lost');});request();
+
+})();
