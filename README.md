@@ -4,7 +4,7 @@ An open-source hackathon prototype for an independent service business. A public
 
 ## Run locally
 
-Requires Node.js 24 or newer. The application build uses no npm dependencies.
+Requires Node.js 24 or newer. The build runs without an npm install. The original public 3D scene includes a locally served, MIT-licensed Three.js runtime; see [scene design](docs/SCENE-DESIGN.md).
 
 ```sh
 node scripts/setup-private.mjs
@@ -73,13 +73,13 @@ AI_FALLBACK_MAX_COMPLETION_PRICE=0.50
 
 No credentials are included in source control. Optional credentials are held in ignored local configuration and server-only deployment bindings. The old `OPENAI_API_KEY` and `AI_MODE=openai` no longer activate an adapter. A key alone does not enable AI: `AI_MODE=openrouter` is also required. `.env` files remain ignored. Configure the base URL only on the server using a trusted HTTPS OpenRouter-compatible endpoint; credentials in URLs, query strings and redirects are rejected. Never put keys in browser code or a public environment variable.
 
-**Synthetic data only.** No real customer, personal, account, capture, payment or sensitive financial information may be entered or sent. The [stealth model terms](https://openrouter.ai/terms/stealth) restrict sensitive inputs; its anonymous provider may retain prompts. This integration is a demonstration, not a production customer-data workflow. The input restrictions below apply to both primary and paid fallback.
+**Synthetic data only.** This entry sends allowlisted fictional inputs to the optional model provider. Keep real customer, account, capture, payment and other sensitive information out of the demonstration. The input boundaries below apply to every configured model and fallback.
 
 The prepared configuration explicitly selects `liquid/lfm-2.5-2.6b:free`, checked against the OpenRouter model catalog on October 5, 2026. The adapter still requires a zero-price provider; catalog availability is not live inference evidence. The legacy Space Bunny default has a retirement guard and is not used by the prepared configuration. If no free route is available, deterministic rules remain available and paid fallback stays disabled.
 
 Paid fallback is **disabled by default**. Setting the server variable `AI_ALLOW_PAID_FALLBACK=true` deliberately opts into at most one separate [DeepSeek V4.1 Flash](https://openrouter.ai/deepseek/deepseek-v4.1-flash) request when the primary is unavailable, retired or produces invalid output. Authentication, billing and invalid-request errors do not trigger fallback. Its strict schema is requested only on that separate opted-in attempt; a schema requirement cannot route the primary to a paid model. The actual fallback is labeled in the UI.
 
-The primary always has a zero-price provider filter, including when its model is overridden. Fallback filters cap provider prices at $0.02/M input and $0.50/M output by default (per-request price must be zero). These are price ceilings, not a guaranteed available route or account spending budget. [Provider prices and availability vary](https://openrouter.ai/docs/guides/routing/provider-selection); no qualifying provider means deterministic fallback. Deliberately changing these server-side caps can change costs. Requests specify one model, disable provider failover, and never use automatic model routing.
+The primary always has a zero-price provider filter, including when its model is overridden. Fallback filters cap provider prices at $0.02/M input and $0.50/M output by default. These are price ceilings, not a guaranteed available route or account spending budget. [Provider prices and availability vary](https://openrouter.ai/docs/guides/routing/provider-selection); no qualifying provider means deterministic fallback. Deliberately changing these server-side caps can change costs. Requests specify one model, disable provider failover, and never use automatic model routing.
 
 There are at most two free-primary attempts for transient HTTP/transport failures and one opted-in paid attempt, each with a 6-second timeout and 256-token output limit (1024 total tokens for the explicitly configured free Liquid reasoning model). Inputs and response bytes are bounded. Malformed JSON, extra fields, tool calls, refusals, truncated output and invalid values are rejected. Errors shown to users contain no provider bodies, keys or raw transport details. Model output never authorizes a payment or changes server policy.
 
@@ -131,3 +131,5 @@ The schema is maintained in `db/schema.ts`, with an inspected equivalent schema-
 ## License
 
 MIT; see [LICENSE](LICENSE). Third-party APIs and services remain subject to their own terms.
+
+PayPal transports reject redirects before parsing provider bodies. Checkout capture requests ask for a full representation; a minimal successful capture is recovered by reading the same order once before exact verification. This recovery never creates a second capture request.
