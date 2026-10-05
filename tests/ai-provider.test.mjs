@@ -29,7 +29,7 @@ test('primary uses Chat Completions JSON mode, explicit model, zero price filter
     calls++;
     assert.equal(url, 'https://openrouter.ai/api/v1/chat/completions');
     assert.equal(options.headers.Authorization, 'Bearer mock-key');
-    assert.equal(options.redirect, 'error');
+    assert.equal(options.redirect, 'manual');
     assert.ok(options.signal instanceof AbortSignal);
     const body = JSON.parse(options.body);
     assert.equal(body.model, AI_PRIMARY_MODEL);
@@ -187,8 +187,8 @@ test('invalid envelopes, oversized response bytes and echoed keys are rejected s
     {code: 'AI_INVALID_OUTPUT'});
 });
 
-test('authentication, billing and request errors cannot trigger paid fallback', async () => {
-  for (const status of [400, 401, 402, 403, 422]) {
+test('redirects, authentication, billing and request errors cannot trigger paid fallback', async () => {
+  for (const status of [301, 302, 307, 308, 400, 401, 402, 403, 422]) {
     let calls = 0;
     await assert.rejects(invoke({...config, AI_ALLOW_PAID_FALLBACK: 'true'}, async () => {
       calls++;

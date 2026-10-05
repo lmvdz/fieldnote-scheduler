@@ -18,7 +18,10 @@ vec2 sculpture(vec3 p){
   p.y-=1.7;p.yz=turn(.48)*p.yz;p.xz=turn(-.55+journey*.1)*p.xz;
   for(int i=0;i<5;i++){float f=float(i);vec3 q=p;float a=f*.26;q.xz=turn(a)*q.xz;q.y-=(f-2.)*(.23+spread*.32);q.x+=sin(f)*spread*.25;
    d=nearer(d,vec2(arc(q,1.28-f*.11,.105,2.55-f*.07),mod(f,2.)<.5?1.:2.));
-   vec3 e=q-vec3(cos(2.84)* (1.28-f*.11),0.,sin(2.84)*(1.28-f*.11));e.x-=spread*.65;e.y+=spread*.12;d=nearer(d,vec2(length(e)-.112,3.));
+   // The returned pieces have the exact curvature of their corresponding gaps.
+   float detached=mix(.35,0.,smoothstep(2.7,3.8,journey))+spread*.65;
+   vec3 e=q;e.x+=detached;e.y-=detached*.35;e.xz=turn(PI)*e.xz;
+   d=nearer(d,vec2(arc(e,1.28-f*.11,.105,PI-(2.55-f*.07)),3.));
   }
   d=nearer(d,vec2(length(p)-.38,2.));
  }else if(world==1){
@@ -40,10 +43,10 @@ vec2 sculpture(vec3 p){
 float terrain(vec3 p){
  float d=length(p.xz),edge=smoothstep(2.8,7.,d);
  float height=.0;
- if(world==0){height=(.28+.23*sin(p.x*.62+p.z*.32)+.12*sin(p.z*.8))*edge;}
- else if(world==1){height=(.19+.11*sin(p.x*.43)*sin(p.z*.53))*edge;}
- else{height=(.19+.17*sin(d*.85+p.x*.15))*edge;}
- return (p.y+.04-height)*.75;
+ if(world==0){height=(.28+.23*sin(p.x*.62+p.z*.32)+.12*sin(p.z*.8))*edge; height+=exp(-pow((p.z+9.)/3.,2.))*(1.4+.7*cos(p.x*.44))+exp(-pow((p.z+14.)/2.7,2.))*(2.+.9*sin(p.x*.29+.3));}
+ else if(world==1){height=(.19+.11*sin(p.x*.43)*sin(p.z*.53))*edge;height+=exp(-pow((p.z+12.)/3.,2.))*(1.8+.3*cos(p.x*.3));}
+ else{height=(.19+.17*sin(d*.85+p.x*.15))*edge;height+=exp(-pow((d-10.)/2.3,2.))*(1.7+.4*sin(p.x*.4));}
+ return (p.y+.04-height)*.60;
 }
 vec2 map(vec3 p){
  vec2 d=nearer(sculpture(p),vec2(terrain(p),4.));
@@ -56,7 +59,7 @@ vec2 map(vec3 p){
 vec3 normal(vec3 p){vec2 e=vec2(.002,0.);return normalize(vec3(map(p+e.xyy).x-map(p-e.xyy).x,map(p+e.yxy).x-map(p-e.yxy).x,map(p+e.yyx).x-map(p-e.yyx).x));}
 float shadow(vec3 p,vec3 l){float s=1.,t=.04;for(int i=0;i<24;i++){float h=sculpture(p+l*t).x;s=min(s,12.*h/t);t+=clamp(h,.035,.25);if(t>6.||s<.02)break;}return clamp(s,.0,1.);}
 vec3 palette(float id){
- if(world==0){if(id<1.5)return vec3(.62,.76,.75);if(id<2.5)return vec3(.12,.43,.42);return vec3(.77,.35,.18);}
+ if(world==0){if(id<1.5)return vec3(.71,.78,.72);if(id<2.5)return vec3(.07,.28,.24);return vec3(.72,.38,.15);}
  if(world==1){if(id<1.5)return vec3(.44,.51,.37);if(id<2.5)return vec3(.13,.24,.17);return vec3(.87,.49,.15);}
  if(id<1.5)return vec3(.62,.64,.77);if(id<2.5)return vec3(.30,.27,.55);return vec3(.76,.46,.23);
 }
@@ -67,13 +70,16 @@ void main(){
  vec2 uv=(gl_FragCoord.xy-.5*resolution)/resolution.y;float mobile=resolution.x/resolution.y<.85?1.:0.;
  // Scroll follows one camera path; the final frame returns to its starting pose.
  float yaw=.26+journey*.54+pointer.x*.07;vec3 ro=vec3(sin(yaw)*7.3,3.8+sin(journey*1.2)*.4,cos(yaw)*7.3);vec3 target=vec3(0.,1.4,0.);
- vec3 f=normalize(target-ro),r=normalize(cross(f,vec3(0.,1.,0.))),u=cross(r,f);uv.x-=mix(.25,0.,mobile);uv.y+=mix(.08,.16,mobile)+pointer.y*.014;
+ vec3 f=normalize(target-ro),r=normalize(cross(f,vec3(0.,1.,0.))),u=cross(r,f);uv.x-=mix(.25,0.,mobile);uv.y+=mix(0.,.04,mobile)+pointer.y*.014;
  vec3 rd=normalize(f*1.65+r*uv.x+u*uv.y);float t=0.;vec2 hit;bool found=false;
  for(int i=0;i<88;i++){vec3 p=ro+rd*t;hit=map(p);if(hit.x<.002){found=true;break;}t+=hit.x*.8;if(t>30.)break;}
  vec3 color=sky(rd);
  if(found){vec3 p=ro+rd*t,n=normal(p),l=normalize(vec3(-3.,6.,4.));float diffuse=max(0.,dot(n,l));float occlusion=clamp(1.-sculpture(p+n*.13).x/.13,0.,.7);float sh=shadow(p+n*.02,l);
   if(hit.y>3.5){vec3 ground=sky(vec3(0.));float grooves=.5+.5*cos(length(p.xz)*24.);ground-=.018*grooves;float ao=exp(-length(p.xz)*length(p.xz)*.28)*.12;color=ground*(.74+.15*diffuse+.11*sh)-ao;if(hit.y>4.5)color*=.91;}
-  else{vec3 base=palette(hit.y);vec3 reflected=environment(reflect(rd,n));float fresnel=.18+.65*pow(1.-max(0.,dot(-rd,n)),4.);color=base*(.22+diffuse*.50*sh)*(1.-occlusion*.38)+reflected*(.42+fresnel*.55);float spec=pow(max(0.,dot(reflect(-l,n),-rd)),50.);color+=vec3(1.3)*spec*sh;float brushed=sin(p.y*180.+p.x*60.)*sin(p.z*70.);color-=brushed*.012;}
+  else{vec3 base=palette(hit.y);vec3 reflected=environment(reflect(rd,n));float fresnel=.18+.65*pow(1.-max(0.,dot(-rd,n)),4.);
+   float matte=hit.y<1.5?1.:0.;color=base*(mix(.22,.42,matte)+diffuse*mix(.50,.56,matte)*sh)*(1.-occlusion*.38)+reflected*mix(.35+fresnel*.35,.10,matte);
+   float spec=pow(max(0.,dot(reflect(-l,n),-rd)),mix(85.,20.,matte));color+=vec3(mix(.65,.08,matte))*spec*sh;
+   float brushed=sin(p.y*28.+p.x*8.)*sin(p.z*12.);color-=brushed*.004;}
   float fog=1.-exp(-t*t*.0018);color=mix(color,sky(rd),fog);
  }
  color=pow(max(color,0.),vec3(.92));color+=(noise(gl_FragCoord.xy)-.5)*.008;gl_FragColor=vec4(color,1.);
@@ -93,7 +99,7 @@ function state(){const h=innerHeight,y=scrollY,close=closing.offsetTop;let p=Mat
 function render(now=0){raf=0;if(failed||document.hidden)return;const paused=document.documentElement.classList.contains('motion-paused');const still=paused||reduced.matches;
  // There is no unrequested idle motion. Draw only in response to input or layout.
  if(now-lastDraw<=45&&drawn&&!still){raf=requestAnimationFrame(render);return;}
- if(now-lastDraw>45||!drawn||still){lastDraw=now;const scale=Math.min(devicePixelRatio,1.25)*(innerWidth>900?.8:1.);const w=Math.round(innerWidth*scale),h=Math.round(innerHeight*scale);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}const s=state();
+ if(now-lastDraw>45||!drawn||still){lastDraw=now;const scale=Math.min(devicePixelRatio,1.5);const w=Math.round(innerWidth*scale),h=Math.round(innerHeight*scale);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}const s=state();
   gl.uniform2f(locations.resolution,w,h);gl.uniform2f(locations.pointer,still?0:px,still?0:py);gl.uniform1f(locations.time,0);gl.uniform1f(locations.journey,still?0:s.p);gl.uniform1f(locations.spread,still?0:s.spread);gl.drawArrays(gl.TRIANGLES,0,6);
   if(!drawn){drawn=true;document.documentElement.dataset.scene='ready';}
  }

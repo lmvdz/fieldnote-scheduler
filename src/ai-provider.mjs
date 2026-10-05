@@ -92,7 +92,7 @@ async function aiAttempt(settings, model, paid, messages, schema, validate, fetc
   try {
     response = await fetcher(settings.endpoint, {
       method: 'POST',
-      redirect: 'error',
+      redirect: 'manual',
       headers: {'Authorization': 'Bearer ' + settings.key, 'Content-Type': 'application/json'},
       body: JSON.stringify({
         model,
