@@ -1,0 +1,35 @@
+name: Browser and workflow QA
+on:
+  push:
+    branches: [main, feat/hackathon-sites]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build and regression checks
+        run: |
+          node scripts/build.mjs
+          node --test --test-isolation=none tests/*.test.mjs
+          node scripts/validate-artifact.mjs
+      - name: Install isolated browser QA tools
+        run: |
+          npm install --prefix /tmp/browser-qa playwright @axe-core/playwright
+          /tmp/browser-qa/node_modules/.bin/playwright install --with-deps chromium
+      - name: Browser workflows and accessibility
+        env:
+          QA_NODE_MODULES: /tmp/browser-qa/node_modules
+        run: node scripts/browser-qa.mjs
+      - name: Preserve review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-evidence
+          path: evidence/browser

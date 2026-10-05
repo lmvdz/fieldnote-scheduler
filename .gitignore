@@ -18,3 +18,5 @@ coverage/
 *.zip
 *.tar.gz
 .DS_Store
+
+evidence/

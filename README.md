@@ -1,18 +1,22 @@
 # Fieldnote — quote to paid scheduling
 
-An open-source hackathon prototype for an independent service business. It opens into a request editor, itemized quote, and live server-side availability workspace. It is not a marketing landing page.
+An open-source hackathon prototype for an independent service business. A public project overview leads into a protected request editor, itemized quote, and server-side availability workspace.
 
 ## Run locally
 
-Requires Node.js 24 or newer; no npm packages are required.
+Requires Node.js 24 or newer. The application build uses no npm dependencies.
 
-```
-npm run build
-npm test
-npm run dev
+```sh
+node scripts/setup-private.mjs
+node scripts/build.mjs
+node --test --test-isolation=none tests/*.test.mjs
+node scripts/validate-artifact.mjs
+node scripts/dev.mjs
 ```
 
-Open the local address printed by the server (default http://localhost:4303). Local state is persisted in `.local/fieldnote.sqlite`, excluded from source control. The deployed Worker uses its D1 `DB` binding. Apply the bundled schema migration when configuring a D1 database. Hosting configuration is intentionally omitted.
+Open http://127.0.0.1:4303/ for the public project overview, then choose the workspace link or visit /app. Read SITE_OWNER_KEY from the ignored .dev.vars file and enter it at the access gate. Keep this key out of source control, screenshots, recordings, and public submission text. PORT overrides the local port. State persists in ignored .local/ SQLite files; the deployed Worker uses its D1 DB binding.
+
+The initial configuration uses synthetic examples and the no-money simulator. [Private provider setup](docs/PROVIDER-SETUP.md) explains the optional AI and PayPal sandbox configuration. [Cloudflare deployment](docs/DEPLOYMENT.md) describes hosting at https://fieldnote.inkwell.finance. Deployment status is reported separately from implementation.
 
 ## What works
 
@@ -52,9 +56,42 @@ Official API references:
 - https://developer.paypal.com/api/webhooks/v1
 - https://developer.paypal.com/studio/checkout/standard/integrate
 
-## Optional AI extraction
+## Optional OpenRouter AI (synthetic demo only)
 
-With explicit owner configuration of AI_MODE=openai and an existing OPENAI_API_KEY on the server, `src/ai.mjs` sends the job description to OpenAI Chat Completions for a structured service/quantity extraction. It never delegates rates, totals, approvals, scheduling writes, or payment decisions to the model. Fixed catalog pricing and manual review remain authoritative. No AI provider was connected or called during this build. Request text would be transmitted to the configured provider when enabled.
+The default remains deterministic and requires no keys. The server-only adapter uses OpenRouter's [Chat Completions API](https://openrouter.ai/docs/api_reference/overview), not an OpenAI key substituted into a different endpoint. Enable it only for synthetic demo data with an existing server-held key:
+
+```dotenv
+AI_MODE=openrouter
+OPENROUTER_API_KEY=<existing server-only key>
+AI_BASE_URL=https://openrouter.ai/api/v1
+AI_PRIMARY_MODEL=liquid/lfm-2.5-2.6b:free
+AI_FALLBACK_MODEL=deepseek/deepseek-v4.1-flash
+AI_ALLOW_PAID_FALLBACK=false
+AI_FALLBACK_MAX_PROMPT_PRICE=0.02
+AI_FALLBACK_MAX_COMPLETION_PRICE=0.50
+```
+
+No credentials are included or configured. The old `OPENAI_API_KEY` and `AI_MODE=openai` no longer activate an adapter. A key alone does not enable AI: `AI_MODE=openrouter` is also required. `.env` files remain ignored. Configure the base URL only on the server using a trusted HTTPS OpenRouter-compatible endpoint; credentials in URLs, query strings and redirects are rejected. Never put keys in browser code or a public environment variable.
+
+**Synthetic data only.** No real customer, personal, account, capture, payment or sensitive financial information may be entered or sent. The [stealth model terms](https://openrouter.ai/terms/stealth) restrict sensitive inputs; its anonymous provider may retain prompts. This integration is a demonstration, not a production customer-data workflow. The input restrictions below apply to both primary and paid fallback.
+
+The prepared configuration explicitly selects `liquid/lfm-2.5-2.6b:free`, checked against the OpenRouter model catalog on October 5, 2026. The adapter still requires a zero-price provider; catalog availability is not live inference evidence. The legacy Space Bunny default has a retirement guard and is not used by the prepared configuration. If no free route is available, deterministic rules remain available and paid fallback stays disabled.
+
+Paid fallback is **disabled by default**. Setting the server variable `AI_ALLOW_PAID_FALLBACK=true` deliberately opts into at most one separate [DeepSeek V4.1 Flash](https://openrouter.ai/deepseek/deepseek-v4.1-flash) request when the primary is unavailable, retired or produces invalid output. Authentication, billing and invalid-request errors do not trigger fallback. Its strict schema is requested only on that separate opted-in attempt; a schema requirement cannot route the primary to a paid model. The actual fallback is labeled in the UI.
+
+The primary always has a zero-price provider filter, including when its model is overridden. Fallback filters cap provider prices at $0.02/M input and $0.50/M output by default (per-request price must be zero). These are price ceilings, not a guaranteed available route or account spending budget. [Provider prices and availability vary](https://openrouter.ai/docs/guides/routing/provider-selection); no qualifying provider means deterministic fallback. Deliberately changing these server-side caps can change costs. Requests specify one model, disable provider failover, and never use automatic model routing.
+
+There are at most two free-primary attempts for transient HTTP/transport failures and one opted-in paid attempt, each with a 6-second timeout and 256-token output limit. Inputs and response bytes are bounded. Malformed JSON, extra fields, tool calls, refusals, truncated output and invalid values are rejected. Errors shown to users contain no provider bodies, keys or raw transport details. Model output never authorizes a payment or changes server policy.
+
+This integration has been tested only with in-process mock transport. No live OpenRouter call, signup, credential setup, paid request, deployment or real payment has been performed. Live connectivity and browser visual QA are unverified.
+
+### Scheduler input boundary
+
+Only exact built-in synthetic examples in `AI_SYNTHETIC_REQUESTS` can reach the provider: the three UI scenario buttons and the test/demo carpet request. All other free text stays with local deterministic rules and shows a notice. Manual scope fields also stay local. This prevents custom customer information from being sent; it intentionally limits AI drafting to the synthetic demonstration.
+
+The server accepts only service, integer quantity (1-50 or null), a boolean pet flag and `clarified=false`. Extra fields, prices, slot/booking commands and approval instructions are rejected. Catalog rules calculate rates and totals; unresolved ambiguity, availability, exact human approval and payment verification still gate bookings. Paid-fallback use and the actual drafting engine are visible; fallback warnings are cleared after a later successful draft.
+
+For local setup, edit the ignored `.dev.vars` file and restart the server. The scripts load missing process variables from this file. Explicit process variables take precedence.
 
 ## Safety and boundaries
 
@@ -69,7 +106,7 @@ With explicit owner configuration of AI_MODE=openai and an existing OPENAI_API_K
 
 ## Tests and verification
 
-`npm test` currently runs 14 passing tests:
+`npm test` retains the original 14 tests and adds mocked OpenRouter transport, extraction, privacy and workflow checks. The original tests cover:
 - integer-cent math and input bounds
 - ambiguity and required scope
 - exact approval and stale revision rejection

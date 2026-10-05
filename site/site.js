@@ -1,0 +1,10 @@
+
+const config=JSON.parse(document.getElementById('flow-data').textContent);
+const buttons=[...document.querySelectorAll('[data-step]')];
+const text=document.getElementById('step-copy'),card=document.getElementById('flow-card');
+function showStep(index,announce=true){const step=config.steps[index];card.querySelector('.card-step').textContent='0'+(index+1)+' / 03';buttons.forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));text.querySelector('h3').textContent=step.title;text.querySelector('p').textContent=step.text;card.querySelector('.card-label').textContent=step.label;card.querySelector('.card-value').textContent=step.value;card.querySelector('.card-unit').textContent=step.unit;const rows=card.querySelector('.card-rows');rows.replaceChildren(...step.rows.map(([label,value])=>{const line=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;line.append(dt,dd);return line}));if(announce)document.getElementById('flow-status').textContent='Step '+(index+1)+': '+step.title;}
+buttons.forEach((button,i)=>button.addEventListener('click',()=>showStep(i)));
+const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');const motion=document.getElementById('motion-toggle');let paused=reduced.matches;let observer;
+function updateMotion(){document.documentElement.classList.toggle('motion-paused',paused);motion.setAttribute('aria-pressed',String(paused));motion.textContent=paused?'Enable motion':'Pause motion';document.querySelector('.hero-art')?.classList.toggle('motion',!paused);}
+motion.addEventListener('click',()=>{paused=!paused;updateMotion()});reduced.addEventListener('change',event=>{paused=event.matches;updateMotion()});updateMotion();
+if('IntersectionObserver' in window&&!reduced.matches){document.documentElement.classList.add('motion-ready');observer=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){entry.target.classList.add('visible');observer.unobserve(entry.target)}},{threshold:.08});document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));}

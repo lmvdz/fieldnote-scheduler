@@ -1,0 +1,27 @@
+{
+  "name": "inkwell-fieldnote",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-10-05",
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "fieldnote.inkwell.finance",
+      "custom_domain": true
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "inkwell-fieldnote-demo",
+      "database_id": "SET_BY_DEPLOYMENT_SCRIPT",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "vars": {
+    "AI_MODE": "demo",
+    "PAYPAL_MODE": "demo",
+    "PAYPAL_SANDBOX_ENABLED": "false",
+    "AI_PRIMARY_MODEL": "liquid/lfm-2.5-2.6b:free",
+    "AI_ALLOW_PAID_FALLBACK": "false"
+  }
+}
