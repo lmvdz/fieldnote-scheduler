@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 const project=JSON.parse(await readFile('site/project.json','utf8'));
 const types={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',svg:'image/svg+xml',webp:'image/webp',ttf:'font/ttf'};
 const assets={};
-for(const name of ['index.html','site.css','site.js','favicon.svg','hero.webp','scene.js','three.module.js','three.core.js','manrope.ttf','manrope-bold.ttf']){
+for(const name of ['index.html','site.css','site.js','favicon.svg','hero.webp','mineral.webp','scene.js','three.module.js','three.core.js','manrope.ttf','manrope-bold.ttf']){
  const body=await readFile('site/'+name);const ext=name.split('.').pop(),binary=['webp','ttf'].includes(ext);
  assets[name==='index.html'?'/':'/site/'+name]={body:binary?body.toString('base64'):body.toString('utf8'),type:types[ext],binary,hash:createHash('sha256').update(body).digest('hex')};
 }
