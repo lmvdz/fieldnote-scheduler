@@ -13,3 +13,5 @@ main,footer,.loop-end{position:relative}.hero{position:relative;min-height:100sv
 @media(max-width:380px){.nav{padding:18px 5vw;gap:8px}.brand{font-size:14px;white-space:nowrap}.brand svg{width:21px;height:21px}.navcta{font-size:10px;padding:11px 12px;white-space:nowrap}.navlinks{flex-shrink:0}}
 
 @media(max-width:600px){.chapter.right,.chapter-story{background:linear-gradient(0deg,var(--paper) 12%,transparent 96%)}}
+
+.detail-pause{height:100svh;pointer-events:none}
