@@ -7,15 +7,15 @@ const reduced=matchMedia('(prefers-reduced-motion: reduce)'),motion=document.get
 function updateMotion(){document.documentElement.classList.toggle('motion-paused',paused);motion.setAttribute('aria-pressed',String(paused));motion.textContent=paused?'Enable motion':'Pause motion';document.dispatchEvent(new Event('motionchange'));}
 motion.addEventListener('click',()=>{paused=!paused;updateMotion()});reduced.addEventListener('change',event=>{paused=event.matches;updateMotion()});updateMotion();
 // Native scrolling remains in charge; only a deliberate forward gesture wraps.
-const closing=document.getElementById('return-scene');let frame=0,pointerUntil=0,previous=scrollY,touching=false,touchStart=0,touchDelta=0;
+const closing=document.getElementById('return-scene');let frame=0,pointerUntil=0,previous=scrollY,touching=false,touchStart=0,touchDelta=0,forwardWheel=false;
 const editing=()=>document.activeElement?.matches('input,textarea,select,[contenteditable=true]');
 function wrap(overshoot=0){document.documentElement.style.scrollBehavior='auto';window.scrollTo(0,overshoot);document.documentElement.style.removeProperty('scroll-behavior');previous=overshoot;}
 window.addEventListener('keydown',()=>{pointerUntil=0;});
-window.addEventListener('wheel',event=>{if(event.deltaY>0)pointerUntil=performance.now()+900;else pointerUntil=0;},{passive:true});
+window.addEventListener('wheel',event=>{forwardWheel=event.deltaY>0;pointerUntil=forwardWheel?performance.now()+900:0;if(!frame)frame=requestAnimationFrame(loop);},{passive:true});
 window.addEventListener('touchstart',event=>{touching=true;touchStart=event.touches[0].clientY;touchDelta=0;pointerUntil=0;},{passive:true});
 window.addEventListener('touchmove',event=>{touchDelta=touchStart-event.touches[0].clientY;},{passive:true});
 window.addEventListener('touchend',()=>{touching=false;if(!paused&&!editing()&&touchDelta>24&&closing.getBoundingClientRect().top<=1){pointerUntil=0;requestAnimationFrame(()=>wrap(Math.max(0,-closing.getBoundingClientRect().top)));}touchDelta=0;},{passive:true});
 window.addEventListener('touchcancel',()=>{touching=false;touchDelta=0;},{passive:true});
-function loop(){frame=0;const top=closing.getBoundingClientRect().top,y=scrollY,focus=document.activeElement;const reading=focus&&(closing.contains(focus)||editing());
- if(!touching&&!paused&&!reading&&performance.now()<pointerUntil&&y>previous&&top<=0){wrap(Math.max(0,-top));return;}previous=y;}
+function loop(){frame=0;const top=closing.getBoundingClientRect().top,y=scrollY,focus=document.activeElement;const reading=focus&&(closing.contains(focus)||editing()),wheelStep=forwardWheel;forwardWheel=false;
+ if(!touching&&!paused&&!reading&&performance.now()<pointerUntil&&(y>previous||wheelStep)&&top<=1){wrap(Math.max(0,-top));return;}previous=y;}
 window.addEventListener('scroll',()=>{if(!frame)frame=requestAnimationFrame(loop)},{passive:true});
