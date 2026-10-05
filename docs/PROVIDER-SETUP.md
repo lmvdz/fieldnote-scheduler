@@ -18,4 +18,4 @@ SITE_OWNER_KEY protects the single-owner state and mutation APIs. Supply the acc
 
 ## Current evidence limit
 
-Provider secrets were not supplied to this work session. Actual AI inference, sandbox transactions and webhook delivery remain unverified. Fill the fields, then run and record the real provider flows before describing this as submit-ready.
+The deployment operator configured private server bindings and verified live, schema-validated OpenRouter inference through each protected hosted app using the zero-price Liquid model. PayPal sandbox authentication and order creation were also verified. Buyer approval, captures, the Resolution Desk refund, and Fieldnote webhook delivery remain unverified. Complete and record these provider outcomes before describing the entries as submit-ready. Public YouTube demonstrations and final judge-access/submission requirements also remain open.
