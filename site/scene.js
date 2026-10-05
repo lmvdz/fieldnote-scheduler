@@ -78,7 +78,7 @@ void main(){
  }
  color=pow(max(color,0.),vec3(.92));color+=(noise(gl_FragCoord.xy)-.5)*.008;gl_FragColor=vec4(color,1.);
 }`;
-let program,locations,drawn=false,failed=false,lastDraw=0,raf=0,px=0,py=0,elapsed=0,lastTick=0;
+let program,locations,drawn=false,failed=false,lastDraw=0,raf=0,px=0,py=0;
 function fail(error){failed=true;document.documentElement.dataset.scene='fallback';canvas.hidden=true;console.warn('3D scene unavailable; static art remains available.',error);}
 if(gl){try{
  const compile=(type,source)=>{const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));return shader;};
@@ -89,18 +89,18 @@ if(gl){try{
 const reduced=matchMedia('(prefers-reduced-motion: reduce)');
 const closing=document.getElementById('return-scene');
 function ease(x){return x*x*(3-2*x);}
-function state(){const h=innerHeight,y=scrollY,close=closing.offsetTop;let p=Math.min(4.6,y/h*.8);const arrival=ease(Math.max(0,Math.min(1,(y-(close-h*1.3))/(h*1.3))));p*=1-arrival;return {p,spread:Math.sin(Math.min(Math.PI,p*.86))*.95,arrival};}
+function state(){const h=innerHeight,y=scrollY,close=closing.offsetTop;let p=Math.min(4.6,y/h*.8);const arrival=ease(Math.max(0,Math.min(1,(y-(close-h*1.3))/(h*1.3))));p*=1-arrival;if(y>=close)p=(y-close)/h*.8;return {p,spread:Math.sin(Math.min(Math.PI,p*.86))*.95,arrival};}
 function render(now=0){raf=0;if(failed||document.hidden)return;const paused=document.documentElement.classList.contains('motion-paused');const still=paused||reduced.matches;
- if(!still){elapsed+=lastTick?Math.min(now-lastTick,60):0;}lastTick=now;
+ // There is no unrequested idle motion. Draw only in response to input or layout.
+ if(now-lastDraw<=45&&drawn&&!still){raf=requestAnimationFrame(render);return;}
  if(now-lastDraw>45||!drawn||still){lastDraw=now;const scale=Math.min(devicePixelRatio,1.25)*(innerWidth>900?.8:1.);const w=Math.round(innerWidth*scale),h=Math.round(innerHeight*scale);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}const s=state();
-  gl.uniform2f(locations.resolution,w,h);gl.uniform2f(locations.pointer,still?0:px,still?0:py);gl.uniform1f(locations.time,elapsed*.001);gl.uniform1f(locations.journey,still?0:s.p);gl.uniform1f(locations.spread,still?0:s.spread);gl.drawArrays(gl.TRIANGLES,0,6);
+  gl.uniform2f(locations.resolution,w,h);gl.uniform2f(locations.pointer,still?0:px,still?0:py);gl.uniform1f(locations.time,0);gl.uniform1f(locations.journey,still?0:s.p);gl.uniform1f(locations.spread,still?0:s.spread);gl.drawArrays(gl.TRIANGLES,0,6);
   if(!drawn){drawn=true;document.documentElement.dataset.scene='ready';}
  }
- if(!still)raf=requestAnimationFrame(render);
 }
 function request(){if(!raf&&!failed)raf=requestAnimationFrame(render);}
 window.addEventListener('pointermove',e=>{px=(e.clientX/innerWidth-.5)*2;py=(e.clientY/innerHeight-.5)*2;request()},{passive:true});
-window.addEventListener('scroll',request,{passive:true});window.addEventListener('resize',request);document.addEventListener('visibilitychange',()=>{lastTick=0;request()});document.addEventListener('motionchange',request);reduced.addEventListener('change',request);
+window.addEventListener('scroll',request,{passive:true});window.addEventListener('resize',request);document.addEventListener('visibilitychange',request);document.addEventListener('motionchange',request);reduced.addEventListener('change',request);
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();if(raf)cancelAnimationFrame(raf);fail('Graphics context lost');});request();
 
 })();
