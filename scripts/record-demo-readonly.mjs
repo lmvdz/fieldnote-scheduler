@@ -1,7 +1,8 @@
 // Copy to scripts/record-demo-readonly.mjs in each reviewed repository.
 // Manual preview only: no login, new approval, order, capture or refund is allowed.
 // The supplied owner cookie is still a full owner bearer credential, not a viewer token.
-import {mkdir,writeFile,rm} from 'node:fs/promises';
+import {mkdir,writeFile,rm,readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import {resolve,join,basename} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
@@ -69,6 +70,7 @@ export async function record(){
   context=await browser.newContext({viewport:{width:1280,height:800},locale:'en-US',timezoneId:'UTC',serviceWorkers:'block',recordVideo:{dir:raw,size:{width:1280,height:800}}});
   const hostname=new URL(cfg.origin).hostname;await context.addCookies([{name:'__Host-inkwell_owner',value:owner,domain:hostname,path:'/',secure:true,httpOnly:true,sameSite:'Lax',expires:expiry},...(project==='fieldnote'?[{name:'fieldnote',value:field,domain:hostname,path:'/',secure:true,httpOnly:true,sameSite:'Lax',expires:expiry}]:[])]);
   async function read(){const response=await context.request.get(cfg.origin+cfg.api,{maxRedirects:0,timeout:15000});if(!response.ok())STOP('AUTHENTICATED_PREFLIGHT_FAILED');const data=await response.json();completedRecord(project,data,expected);return data;}
+  const remoteScene=await context.request.get(cfg.origin+'/site/scene.js',{maxRedirects:0,timeout:15000});if(!remoteScene.ok())STOP('DEPLOYED_SCENE_UNAVAILABLE');const remoteSceneText=await remoteScene.text(),localSceneText=await readFile('site/scene.js','utf8');const sceneHash=createHash('sha256').update(localSceneText).digest('hex');if(createHash('sha256').update(remoteSceneText).digest('hex')!==sceneHash)STOP('DEPLOYED_SCENE_DOES_NOT_MATCH_REVIEWED_SOURCE');
   let snapshot=await read();let target=completedRecord(project,snapshot,expected);
   if(project==='merchant'){
    if(!UUID.test(target.session||''))STOP('ORIGINAL_DESK_SESSION_REQUIRED');
@@ -93,7 +95,7 @@ export async function record(){
    captionLines(detail);
    scenes.push({at:(Date.now()-started)/1000,title,detail});await page.waitForTimeout(seconds*1000);
   }
-  await page.goto(cfg.origin+'/',{waitUntil:'networkidle',timeout:20000});await scene(cfg.title+' · '+cfg.audience,'Synthetic data · previously verified sandbox outcome · no new payment during this recording',12);
+  await page.goto(cfg.origin+'/',{waitUntil:'domcontentloaded',timeout:20000});await page.waitForFunction(version=>document.documentElement.dataset.scene==='ready'&&document.documentElement.dataset.sceneVersion===version,project==='supplypilot'?'mesh-v7p2':'mesh-v7');await scene(cfg.title+' · '+cfg.audience,'Synthetic data · previously verified sandbox outcome · no new payment during this recording',12);
   await page.goto(cfg.origin+'/app',{waitUntil:'networkidle',timeout:20000});if(await page.locator('#access-key').count())STOP('LOGIN_MUST_NOT_BE_RECORDED');
   if(project==='merchant'){
    await scene('An incomplete $198 order','The fulfillment fixture supports a $34 missing-pouch refund. Human approval and server policy retain authority.',24);
@@ -134,7 +136,7 @@ export async function record(){
   const probe=JSON.parse((await run('ffprobe',['-v','error','-show_entries','format=duration','-of','json',destination],{env:cleanEnv})).stdout);const duration=Number(probe.format?.duration);if(!Number.isFinite(duration)||duration<=0||duration>=180)STOP('VIDEO_MUST_BE_LESS_THAN_THREE_MINUTES');
   const thumbs=[];for(let i=0;i<scenes.length;i++){const at=Math.min(duration-0.1,scenes[i].at+Math.min(5,Math.max(0.1,((scenes[i+1]?.at||duration)-scenes[i].at)/2)));const thumb=join(output,project+'-storyboard-'+String(i+1).padStart(2,'0')+'.png');await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-ss',String(at),'-i',destination,'-frames:v','1',thumb],{env:cleanEnv,maxBuffer:1024*1024});thumbs.push({file:thumb,at,title:scenes[i].title});}
   await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-i',destination,'-vf',`fps=1/${Math.max(1,duration/9)},scale=426:-1,tile=3x3`,'-frames:v','1',join(output,project+'-contact-sheet.png')],{env:cleanEnv,maxBuffer:1024*1024});
-  await writeFile(join(output,project+'-manifest.json'),JSON.stringify({project,origin:cfg.origin,reviewedCommit:sha,durationSeconds:duration,ai:aiEvidence,storyboard:thumbs.map(t=>({file:basename(t.file),at:t.at,title:t.title})),expectedCapture:expected.capture,expectedRecord:expected.record,financialMutations:'none; optional prevalidated completed-refund replay only',walletReturnUxVerified:false,previewOnly:true},null,2));
+  await writeFile(join(output,project+'-manifest.json'),JSON.stringify({project,origin:cfg.origin,reviewedCommit:sha,deployedSceneSha256:sceneHash,durationSeconds:duration,ai:aiEvidence,storyboard:thumbs.map(t=>({file:basename(t.file),at:t.at,title:t.title})),expectedCapture:expected.capture,expectedRecord:expected.record,financialMutations:'none; optional prevalidated completed-refund replay only',walletReturnUxVerified:false,previewOnly:true},null,2));
   console.log(JSON.stringify({project,status:'PREVIEW_RECORDED',durationSeconds:duration,previewOnly:true}));
  }finally{await context?.close().catch(()=>{});await browser?.close().catch(()=>{});await rm(raw,{recursive:true,force:true});}
 }
