@@ -1,4 +1,4 @@
-import {extract} from './domain.mjs';
+import {extract, requestScopeFacts} from './domain.mjs';
 import {aiConfigured, requestAI, AI_PUBLIC_WARNING} from './ai-provider.mjs';
 
 // Only these canonical synthetic examples may leave the server. Custom text stays with local rules.
@@ -32,6 +32,18 @@ export function validateAIScope(value) {
   return value;
 }
 
+export function validateGroundedAIScope(value, request) {
+  const checked = validateAIScope(value);
+  const facts = requestScopeFacts(request);
+  if (checked.quantity !== facts.quantity || checked.pet !== facts.pet ||
+      facts.service !== null && checked.service !== facts.service) {
+    throw new Error('AI scope contradicts the fictional request.');
+  }
+  // Multiple named services cannot be resolved by a model choosing a valid enum.
+  // Null survives extract(); explicit local human details can resolve it later.
+  return {...checked, service: facts.service === null ? null : checked.service};
+}
+
 export async function draftRequest(env, request, details = {}, fetcher = fetch, now = Date.now()) {
   const deterministic = {...extract(request, details), engine: 'rules',
     aiModel: null, aiPaidFallback: false, aiWarning: null};
@@ -44,7 +56,8 @@ export async function draftRequest(env, request, details = {}, fetcher = fetch, 
       'Extract the fictional service request. Return only service (carpet, window, assembly, cleaning or null), ' +
       'quantity (integer 1-50 or null), pet (boolean), clarified (always false). ' +
       'Do not invent missing quantities, set rates, calculate totals, set a slot, approve or book.',
-      {syntheticDemo: true, request: fixture}, AI_SCOPE_SCHEMA, validateAIScope, fetcher, now);
+      {syntheticDemo: true, request: fixture}, AI_SCOPE_SCHEMA,
+      value => validateGroundedAIScope(value, fixture), fetcher, now);
     return {...extract(request, {...result.value, ...details}), engine: 'openrouter', aiWarning: null,
       aiModel: result.model, aiPaidFallback: result.fallbackUsed};
   } catch {

@@ -8,11 +8,22 @@ const json=(body,status=200,headers={})=>new Response(JSON.stringify(body),{stat
 const security={'X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Permissions-Policy':'camera=(), geolocation=()','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self' https://chatgpt.com"};
 async function session(request,db){let id=request.headers.get('cookie')?.match(/(?:^|; )fieldnote=([a-f0-9-]{36})(?:;|$)/)?.[1];let state=id?await load(db,id):null;let cookie;if(!state){id=crypto.randomUUID();state=freshState();await db.run('INSERT INTO sessions(id,state,revision,updated) VALUES(?,?,?,?)',id,JSON.stringify(state),state.version,Date.now());cookie=`fieldnote=${id}; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800${new URL(request.url).protocol==='https:'?'; Secure':''}`;}return {id,state,cookie};}
 async function view(db,id,state,env){const rows=await db.all('SELECT slot,session,state,expires FROM slots WHERE expires>?',Date.now());return {state,mode:paypalReady(env)?'sandbox':'demo',ai:state.engine==='openrouter'?'OpenRouter extraction':state.aiWarning?'Rules-based fallback':'Rules-based demo',aiConfigured:aiConfigured(env),currency:'USD',timezone:'UTC',availability:slotOptions().map(slot=>({slot,status:fixtures().includes(slot)?'busy':rows.find(r=>r.slot===slot)?.session===id&&(rows.find(r=>r.slot===slot)?.state==='held'||state.stage==='booked'&&state.slot===slot)?'yours':rows.some(r=>r.slot===slot)?'busy':'available'}))};}
+async function recordCompletedEvent(db,id,state,record,capture,eventId){
+ if(record.status!=='completed'||record.capture!==capture||state.payment?.mode!==record.mode||state.payment.amount!==record.amount||state.order?.mode!==record.mode)throw Error('The completed payment ledger does not match this event.');
+ assertApproved(state);
+ if(state.order.fingerprint!==state.approval.fingerprint)throw Error('The completed booking approval does not match this event.');
+ const encoded=JSON.stringify(state);
+ const result=await db.run("INSERT INTO events(id,order_id,created) SELECT ?,?,? WHERE EXISTS (SELECT 1 FROM sessions WHERE id=? AND revision=? AND state=?) AND EXISTS (SELECT 1 FROM orders WHERE id=? AND session=? AND status='completed' AND capture=? AND amount=? AND mode=?) AND EXISTS (SELECT 1 FROM slots WHERE slot=? AND session=? AND state='booked') ON CONFLICT(id) DO NOTHING",eventId,record.id,Date.now(),id,state.version,encoded,record.id,id,capture,record.amount,record.mode,state.slot,id);
+ if(result.meta.changes===1)return;
+ const existing=await db.one('SELECT order_id FROM events WHERE id=?',eventId);
+ if(existing?.order_id===record.id)return;
+ throw Error('The booking changed before this verified event could be recorded. Reconcile the original order.');
+}
 async function complete(db,id,state,orderId,providerOrder,mode,eventId,attempt=0){
 const record=await db.one('SELECT * FROM orders WHERE id=? AND session=?',orderId,id);
 if(!record||record.status==='cancelled'||record.mode!==mode)throw Error('This payment is no longer associated with the current request.');
 const capture=verifyCapture(providerOrder,{id:orderId,amount:record.amount,session:id});
-if(state.stage==='booked'&&state.order?.id===orderId&&state.payment?.capture===capture)return {state,duplicate:true};
+if(state.stage==='booked'&&state.order?.id===orderId&&state.payment?.capture===capture){await recordCompletedEvent(db,id,state,record,capture,eventId);return {state,duplicate:true};}
 assertApproved(state);
 if(state.order?.id!==orderId||state.approval.fingerprint!==state.order.fingerprint)throw Error('Payment needs manual reconciliation because the request changed.');
 const lock=await db.one('SELECT * FROM slots WHERE slot=?',state.slot);
@@ -27,11 +38,28 @@ const result=await db.batch([
 ]);
 const current=await load(db,id);
 if(result[0].meta.changes===1)return {state:current,duplicate:false};
-if(current.stage==='booked'&&current.order?.id===orderId&&current.payment?.capture===capture)return {state:current,duplicate:true};
+if(current.stage==='booked'&&current.order?.id===orderId&&current.payment?.capture===capture)return complete(db,id,current,orderId,providerOrder,mode,eventId,attempt+1);
 if(attempt<3&&current.version!==state.version&&current.order?.id===orderId)return complete(db,id,current,orderId,providerOrder,mode,eventId,attempt+1);
 throw Error('Payment was verified but the request changed. Reconcile again; no duplicate payment will be made.');
 }
-async function webhook(request,env,db){if(!paypalReady(env))return json({error:'Sandbox webhooks are disabled in demo mode.'},503);const event=await request.json();await verifyWebhook(env,request.headers,event);if(!event.id)throw Error('Missing webhook event ID.');if(await db.one('SELECT id FROM events WHERE id=?',event.id))return json({ok:true,duplicate:true});if(event.event_type!=='PAYMENT.CAPTURE.COMPLETED')return json({ok:true,ignored:true});const orderId=event.resource?.supplementary_data?.related_ids?.order_id;const record=await db.one('SELECT * FROM orders WHERE id=?',orderId||'');if(!record)return json({ok:true,ignored:true});const providerOrder=await paypal(env,'/v2/checkout/orders/'+encodeURIComponent(orderId));const state=await load(db,record.session);const result=await complete(db,record.session,state,orderId,providerOrder,'sandbox',event.id);return json({ok:true,duplicate:result.duplicate});}
+async function webhook(request,env,db){
+ if(!paypalReady(env))return json({error:'Sandbox webhooks are disabled in demo mode.'},503);
+ const event=await request.json();await verifyWebhook(env,request.headers,event);
+ if(!event.id)throw Error('Missing webhook event ID.');
+ if(event.event_type!=='PAYMENT.CAPTURE.COMPLETED')return json({ok:true,ignored:true});
+ const orderId=event.resource?.supplementary_data?.related_ids?.order_id;
+ const record=await db.one('SELECT * FROM orders WHERE id=?',orderId||'');
+ if(!record)return json({ok:true,ignored:true});
+ if(record.mode!=='sandbox'||event.resource.status!=='COMPLETED'||event.resource.amount?.currency_code!=='USD'||event.resource.amount.value!==(record.amount/100).toFixed(2))throw Error('The webhook payment does not match the stored sandbox order.');
+ const existing=await db.one('SELECT order_id FROM events WHERE id=?',event.id);
+ if(existing){if(existing.order_id!==orderId||record.status!=='completed'||record.capture!==event.resource.id)throw Error('The webhook event identity does not match its completed capture.');return json({ok:true,duplicate:true});}
+ const providerOrder=await paypal(env,'/v2/checkout/orders/'+encodeURIComponent(orderId));
+ const verified=verifyCapture(providerOrder,{id:orderId,amount:record.amount,session:record.session});
+ if(event.resource.id!==verified)throw Error('The webhook capture does not match the verified order capture.');
+ const state=await load(db,record.session);
+ const result=await complete(db,record.session,state,orderId,providerOrder,'sandbox',event.id);
+ return json({ok:true,duplicate:result.duplicate});
+}
 export default {async fetch(request,env){const url=new URL(request.url);try{if(!url.pathname.startsWith('/api/')){const key=url.pathname==='/'?'/index.html':url.pathname;const asset=assets[key];if(!asset)return new Response('Not found',{status:404});return new Response(asset.body,{headers:{'Content-Type':asset.type,...security}});}const db=database(env);if(url.pathname==='/api/paypal/webhook'&&request.method==='POST')return await webhook(request,env,db);const ctx=await session(request,db);let {id,state}=ctx;const output=async(extra={})=>json({...await view(db,id,state,env),...extra},200,ctx.cookie?{'Set-Cookie':ctx.cookie}:{});if(url.pathname==='/api/state'&&request.method==='GET')return output();if(request.method!=='POST')return json({error:'Method not allowed'},405);if(request.headers.get('origin')!==url.origin)return json({error:'Same-origin request required'},403);if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'JSON required'},415);const raw=await request.text();if(raw.length>15000)return json({error:'Request is too large'},413);const body=JSON.parse(raw);if(body.version!==state.version)return json({error:'This request changed. Refresh the latest version before continuing.'},409);const mode=paypalReady(env)?'sandbox':'demo';
 if(url.pathname==='/api/draft'){canEdit(state);const draft=await draftRequest(env,body.request,body.details||{});const next=audit(edit(state,{...draft,slot:state.slot}),'Draft scope and catalog prices prepared for review.');state=await saveAndRelease(db,id,state,next);return output();}
 if(url.pathname==='/api/edit'){canEdit(state);const next=audit(edit(state,{lines:body.lines,slot:body.slot}),'Quote or time changed; previous approval revoked.');state=await saveAndRelease(db,id,state,next);return output();}

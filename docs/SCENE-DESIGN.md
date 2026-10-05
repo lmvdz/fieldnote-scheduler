@@ -9,3 +9,8 @@ The build embeds all public assets into the Worker. Visual acceptance requires i
 The renderer draws only after input or layout changes, with a settled higher-resolution frame. Native text and controls remain available during loading or graphics failure. Frame diagnostics in `window.__sceneEvidence` expose only rendering timings and geometry counts; they contain no application or provider data. Three.js package integrity was verified against its npm SHA-512 metadata; its license is included in `site/Three-LICENSE.txt`.
 
 The three environments have different geometry and completion cues: Resolution closes fitted sections in concentric repair terraces, SupplyPilot aligns a selected central stack over procurement docks, and Fieldnote aligns clock layers over a reservation colonnade. A generated multiscale pore texture remains the fallback for a locally served original mineral albedo, freshly produced with ImageGen without reference images. Its production prompt requested neutral overhead lighting and no architecture or copied artwork; seamless edges are not certified.
+
+
+## Refined material and portrait detail
+
+Rounded modeled pieces use denser bevels with softened normals on curved edges; axis-aligned face normals remain planar. A bright studio strip and opposing dark flag provide a moving reflection against matte mineral ceramic. The art-only portrait beat selects a receiving rail, returning joint or clock interface, then blends back to the full assembly before native text enters. Desktop keeps a full sculpture close-up. These are implementation intentions; rendered artifacts and independent review determine quality.

@@ -60,11 +60,53 @@ test('unavailable primary without paid opt-in preserves manual scope and sanitiz
 test('explicit paid fallback draft is labeled and cannot approve an uncertain request', async () => {
   let calls = 0;
   const result = await draftRequest({...config, AI_ALLOW_PAID_FALLBACK: 'true'}, AI_SYNTHETIC_REQUESTS[1], {}, async () => {
-    calls++; return calls === 1 ? new Response('', {status: 404}) : reply({...scope, quantity: null});
+    calls++; return calls === 1 ? new Response('', {status: 404}) : reply({...scope, quantity: null, pet:false});
   }, now);
   assert.equal(calls, 2);
   assert.equal(result.engine, 'openrouter');
   assert.equal(result.aiPaidFallback, true);
+  assert.equal(result.service, null);
   assert.ok(result.questions.length);
   assert.throws(() => approve({...freshState(), ...result}, 0), /scope questions/);
+});
+
+test('schema-valid third service cannot resolve the canonical uncertain carpet-or-window request', async () => {
+  const result = await draftRequest(config, AI_SYNTHETIC_REQUESTS[1], {}, async () =>
+    reply({service:'cleaning',quantity:null,pet:false,clarified:false}), now);
+  assert.equal(result.engine, 'openrouter');
+  assert.equal(result.service, null);
+  assert.equal(result.quantity, 0);
+  assert.deepEqual(result.lines, []);
+  assert.ok(result.questions.some(question => question.includes('kind of service')));
+  assert.ok(result.questions.some(question => question.includes('uncertain')));
+  assert.throws(() => approve({...freshState(),...result}, 0), /scope questions/);
+  const offline = await draftRequest({}, AI_SYNTHETIC_REQUESTS[1]);
+  assert.equal(offline.service, null);
+  assert.deepEqual(offline.lines, []);
+});
+
+test('valid-enum service, quantity and treatment contradictions fall back to source facts', async () => {
+  for (const value of [{...scope,service:'cleaning'}, {...scope,quantity:6}, {...scope,quantity:null}, {...scope,pet:false}]) {
+    const result = await draftRequest(config, AI_SYNTHETIC_REQUESTS[0], {}, async () => reply(value), now);
+    assert.equal(result.engine, 'rules');
+    assert.ok(result.aiWarning);
+    assert.equal(result.service, 'carpet');
+    assert.equal(result.quantity, 3);
+    assert.equal(result.pet, true);
+    assert.deepEqual(result.lines.map(line=>line.rate), [4500,2000]);
+  }
+});
+
+test('local human resolution overrides normalized AI scope and is never sent to the provider', async () => {
+  const result = await draftRequest(config, AI_SYNTHETIC_REQUESTS[1],
+    {service:'window',quantity:4,pet:false,clarified:true}, async (_,options) => {
+      assert.deepEqual(JSON.parse(JSON.parse(options.body).messages[1].content),
+        {syntheticDemo:true,request:AI_SYNTHETIC_REQUESTS[1]});
+      return reply({service:'cleaning',quantity:null,pet:false,clarified:false});
+    }, now);
+  assert.equal(result.engine,'openrouter');
+  assert.equal(result.service,'window');
+  assert.equal(result.quantity,4);
+  assert.deepEqual(result.questions,[]);
+  assert.deepEqual(result.lines,[{description:'Window cleaning',quantity:4,rate:1200}]);
 });

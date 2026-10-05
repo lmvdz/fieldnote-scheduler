@@ -49,7 +49,7 @@ When the owner configures PAYPAL_MODE=sandbox, PAYPAL_CLIENT_ID, and PAYPAL_CLIE
 
 Webhook testing requires a reachable, signature-verified listener and an authenticated application hosting design. Foreground capture can still reconcile payment when the app is open.
 
-Sandbox credentials were supplied privately. PayPal sandbox authentication succeeded; no completed sandbox payment is claimed yet. Provider transport tests use deterministic in-process mocks, not live provider calls. Refunds and post-capture cancellation of sandbox bookings are intentionally blocked until a real refund workflow exists.
+The hosted application completed an actual $155 sandbox test-card capture, verified against PayPal, and recorded one durable booking. Duplicate capture reused the same booking. Wallet buyer approval/return UX and actual webhook delivery remain unverified. Mock transport/recovery tests are separate evidence. Refunds and post-capture cancellation of sandbox bookings are intentionally blocked until a real refund workflow exists.
 
 Official API references:
 - https://developer.paypal.com/api/orders/v2
@@ -83,7 +83,7 @@ The primary always has a zero-price provider filter, including when its model is
 
 There are at most two free-primary attempts for transient HTTP/transport failures and one opted-in paid attempt, each with a 6-second timeout and 256-token output limit (1024 total tokens for the explicitly configured free Liquid reasoning model). Inputs and response bytes are bounded. Malformed JSON, extra fields, tool calls, refusals, truncated output and invalid values are rejected. Errors shown to users contain no provider bodies, keys or raw transport details. Model output never authorizes a payment or changes server policy.
 
-Live OpenRouter inference was observed on October 5, 2026 for a built-in synthetic example, with validated JSON and zero reported cost. Paid fallback remained disabled. Local mocks cover failure and policy boundaries. The public overview and protected workspace are deployed to this project’s custom domain. Actual completed sandbox payments and browser visual QA remain separate open verification gates.
+Live OpenRouter inference was observed on October 5, 2026 for a built-in synthetic example, with validated JSON and zero reported cost. Paid fallback remained disabled. Local mocks cover failure and policy boundaries. The public overview and protected workspace are deployed to this project’s custom domain. The hosted application completed an actual $155 sandbox test-card capture, verified against PayPal, and recorded one durable booking. Duplicate capture reused the same booking. Wallet buyer approval/return UX and actual webhook delivery remain unverified.
 
 ### Scheduler input boundary
 
