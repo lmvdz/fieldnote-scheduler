@@ -21,14 +21,14 @@ const pigmentCanvas=document.createElement('canvas');pigmentCanvas.width=pigment
 for(let i=0;i<pixels.data.length;i+=4){const tone=215+pixels.data[i]*.17;pigmentPixels.data[i]=pigmentPixels.data[i+1]=pigmentPixels.data[i+2]=tone;pigmentPixels.data[i+3]=255;}pigmentContext.putImageData(pigmentPixels,0,0);
 const pigment=new T.CanvasTexture(pigmentCanvas);pigment.colorSpace=T.SRGBColorSpace;pigment.wrapS=pigment.wrapT=T.RepeatWrapping;pigment.repeat.set(8,8);pigment.anisotropy=grain.anisotropy;
 const ceramic=new T.MeshStandardMaterial({color:palette.ceramic,roughness:.52,metalness:.02,bumpMap:grain,bumpScale:.009});
-const metal=new T.MeshStandardMaterial({color:palette.metal,roughness:.19,metalness:.93});
-const copper=new T.MeshStandardMaterial({color:palette.copper,roughness:.22,metalness:.95});
+const metal=new T.MeshStandardMaterial({color:palette.metal,roughness:.16,metalness:.93,envMapIntensity:1.35});
+const copper=new T.MeshStandardMaterial({color:palette.copper,roughness:.18,metalness:.95,envMapIntensity:1.35});
 const inlay=new T.MeshStandardMaterial({color:0xc5d0ba,roughness:.5,metalness:.25});
 const groundMaterial=new T.MeshStandardMaterial({color:palette.paper,roughness:.94,map:pigment,bumpMap:grain,bumpScale:.075});
 const darkMaterial=new T.MeshStandardMaterial({color:palette.ink,roughness:.62,metalness:.16});
 const luminous=new T.MeshStandardMaterial({color:palette.copper,emissive:palette.copper,emissiveIntensity:.35,roughness:.35,metalness:.55});
 // A locally generated studio environment adds soft, physically coherent reflections.
-const room=new T.Scene();room.background=new T.Color(0x797e78);const panel=(x,y,z,w,h,color)=>{const m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({color:new T.Color(color).multiplyScalar(color===0xffffff?4:2),side:T.DoubleSide}));m.position.set(x,y,z);m.lookAt(0,1,0);room.add(m);};panel(-4,5,4,4,5,0xffffff);panel(4,2,0,3,5,0x80918a);panel(0,7,-3,5,3,0xe9eadf);const pmrem=new T.PMREMGenerator(renderer);const environment=pmrem.fromScene(room,.06,.1,30);scene.environment=environment.texture;pmrem.dispose();room.traverse(o=>{o.geometry?.dispose();if(o.material)o.material.dispose();});
+const room=new T.Scene();room.background=new T.Color(0x222b27);const panel=(x,y,z,w,h,color)=>{const m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({color:new T.Color(color).multiplyScalar(color===0xffffff?4:2),side:T.DoubleSide}));m.position.set(x,y,z);m.lookAt(0,1,0);room.add(m);};panel(-4,5,4,4,5,0xffffff);panel(4,2,0,3,5,0x80918a);panel(0,7,-3,5,3,0xe9eadf);panel(0,3.5,6,2,5,0xffffff);const pmrem=new T.PMREMGenerator(renderer);const environment=pmrem.fromScene(room,.06,.1,30);scene.environment=environment.texture;pmrem.dispose();room.traverse(o=>{o.geometry?.dispose();if(o.material)o.material.dispose();});
 scene.add(new T.HemisphereLight(0xf1f2e9,palette.ink,1.2));const key=new T.DirectionalLight(0xffffff,2.7);key.position.set(-4.5,7.5,4);key.castShadow=true;key.shadow.mapSize.set(1536,1536);Object.assign(key.shadow.camera,{left:-5,right:5,top:6,bottom:-4,near:.1,far:24});key.shadow.bias=-.00015;key.shadow.normalBias=.022;key.shadow.radius=3;scene.add(key);const fill=new T.DirectionalLight(0xc8d4de,.8);fill.position.set(4,3,-5);scene.add(fill);
 const mesh=(geometry,material,parent=assembly)=>{const m=new T.Mesh(geometry,material);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;};
 function cylinder(radius,height,mat,y,parent=assembly){const m=mesh(new T.CylinderGeometry(radius,radius,height,64),mat,parent);m.position.y=y;return m;}
