@@ -1,6 +1,6 @@
 # Fieldnote: private provider setup
 
-Run node scripts/setup-private.mjs once. It prepares an ignored .dev.vars file and generates an owner access key if absent. Existing keys are preserved. Edit this file locally; never paste secrets into a chat, a public repository, a URL, or Devpost.
+Run node scripts/setup-private.mjs once. It prepares an ignored .dev.vars file and generates an owner access key if absent. Existing keys are preserved. Edit this file locally. Keep provider credentials out of chat, public repositories, URLs and submission fields. The separate workspace access key may be supplied in the organizer’s private judge testing instructions as described below.
 
 ## AI
 
