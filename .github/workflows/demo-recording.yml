@@ -1,0 +1,77 @@
+# Copy into .github/workflows/demo-recording.yml. Manual-only preview.
+# Publish workflow on the default branch if required for workflow_dispatch discovery;
+# checkout only the separately reviewed exact commit. No secrets in install steps.
+name: Private demo preview
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        type: choice
+        options: [merchant, supplypilot, fieldnote]
+        required: true
+      reviewed_sha:
+        description: Exact reviewed 40-character commit
+        required: true
+      expected_capture:
+        description: Sanitized actual sandbox capture ID
+        required: true
+      expected_record:
+        description: Actual refund ID, receipt ID, or Field capture ID
+        required: true
+      expected_order:
+        description: Actual Supply or Field order ID; blank for Merchant
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: demo-preview-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  record:
+    if: github.event_name == 'workflow_dispatch' && github.repository_owner == 'lmvdz'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - name: Check exact reviewed ref
+        env:
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+        run: |
+          case "$REVIEWED_SHA" in *[!a-f0-9]*|'') exit 1 ;; esac
+          test "${#REVIEWED_SHA}" = 40
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.reviewed_sha }}
+          persist-credentials: false
+      - name: Prepare trusted recording runtime without cookies
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq ffmpeg fonts-dejavu-core
+          npm install --prefix "$RUNNER_TEMP/demo-playwright" --no-save --ignore-scripts playwright@1.63.0
+      - name: Record prevalidated completed sandbox state
+        env:
+          DEMO_PROJECT: ${{ inputs.project }}
+          DEMO_REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          DEMO_EXPECTED_CAPTURE: ${{ inputs.expected_capture }}
+          DEMO_EXPECTED_RECORD: ${{ inputs.expected_record }}
+          DEMO_EXPECTED_ORDER: ${{ inputs.expected_order }}
+          DEMO_OWNER_COOKIE: ${{ secrets.DEMO_OWNER_COOKIE }}
+          DEMO_FIELD_SESSION: ${{ secrets.DEMO_FIELD_SESSION }}
+          DEMO_PLAYWRIGHT_HOME: ${{ runner.temp }}/demo-playwright
+        run: node scripts/record-demo-readonly.mjs --execute
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: demo-preview-${{ inputs.project }}
+          path: |
+            recording-final/*-demo-preview.mp4
+            recording-final/*-manifest.json
+            recording-final/*-captions.json
+            recording-final/*-storyboard-*.png
+            recording-final/*-contact-sheet.png
+          if-no-files-found: error
+          include-hidden-files: false
+          retention-days: 1
+# Root deletes the temporary repo secrets after the job (including failed jobs).
+# Deleting a secret does not revoke an already-issued cookie; its signed expiry does.
+# No provider keys, traces, storageState, HAR, request headers, private proofs or login
+# footage are uploaded. Download and review the MP4 before public YouTube upload.
