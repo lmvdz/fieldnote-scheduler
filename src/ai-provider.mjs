@@ -98,7 +98,8 @@ async function aiAttempt(settings, model, paid, messages, schema, validate, fetc
         model,
         messages,
         stream: false,
-        max_tokens: 256,
+        // This free reasoning model needs room for thinking before its bounded JSON answer.
+        max_tokens: !paid && model === 'liquid/lfm-2.5-2.6b:free' ? 1024 : 256,
         temperature: 0,
         response_format: paid
           ? {type: 'json_schema', json_schema: {name: 'prototype_result', strict: true, schema}}
