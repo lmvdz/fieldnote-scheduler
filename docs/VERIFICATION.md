@@ -27,7 +27,7 @@ GitHub Actions runs build the source and exercise local fixture browser workflow
 
 ## Remaining submission gates
 
-Final independent design and submission review, a public English YouTube demonstration below three minutes, verified free judge access and entrant registration/eligibility remain open. A genuine signature-verified sandbox webhook is now evidenced; wallet buyer approval/return UX remains unverified. No measured customer ROI, real inventory/fulfillment integration or production readiness is claimed.
+Independent landing and application quality reviews passed their separate above-80 gates. A captioned English demonstration was recorded at 166.84 seconds and preserves the distinction between local no-money simulation and the existing verified sandbox booking. Complete free local setup instructions are prepared in [judge access](JUDGE-ACCESS.md). Public YouTube publication and entrant registration/eligibility remain open; the working source and testing instructions must stay accessible through the judging period. A genuine signature-verified sandbox webhook is now evidenced; wallet buyer approval/return UX remains unverified. No measured customer ROI, real inventory/fulfillment integration or production readiness is claimed.
 
 ## Bounded prompt refinement
 

@@ -106,6 +106,8 @@ For local setup, edit the ignored `.dev.vars` file and restart the server. The s
 
 ## Tests and verification
 
+The reviewed CI run passed 61 tests with no failures, cancellations or skips. Browser workflow checks and provider evidence are reported separately.
+
 `npm test` retains the original 14 tests and adds mocked OpenRouter transport, extraction, privacy and workflow checks. The original tests cover:
 - integer-cent math and input bounds
 - ambiguity and required scope
@@ -124,7 +126,7 @@ For local setup, edit the ignored `.dev.vars` file and restart the server. The s
 
 The Worker build validates as Cloudflare-compatible ESM with callable default.fetch. End-to-end API tests use Node's built-in SQLite with a D1-compatible adapter. 
 
-Responsive CSS includes desktop three-column, tablet two-column and mobile single-column layouts, native input labels, keyboard controls, focus rings, reduced motion, status announcements and text-first fallback. Automated browser/mobile visual QA has not been completed. No claim of visually verified mobile rendering is made. Test it on a real browser before a public demo.
+Automated Chromium review covered desktop, 390px and 320px mobile layouts, keyboard controls, reduced motion, loop seams, graphics fallback and simulated application workflows. The reviewed landing builds passed 38 checks with zero axe violations or page errors in the tested states; see [verification evidence](docs/VERIFICATION.md). This is bounded browser evidence, not an accessibility certification or a real-device audit. PayPal sandbox and webhook evidence is recorded separately from simulated browser workflows.
 
 The schema is maintained in `db/schema.ts`, with an inspected equivalent schema-only SQLite migration in `drizzle/0000_fieldnote.sql` and migration journal. Regenerate a matching snapshot using Drizzle in an authorized normal development environment before future schema evolution. This limitation does not affect the dependency-free Worker or tested SQLite behavior.
 
