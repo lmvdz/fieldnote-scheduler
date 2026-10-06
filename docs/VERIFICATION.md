@@ -22,3 +22,7 @@ GitHub Actions runs build the source and exercise local fixture browser workflow
 ## Remaining submission gates
 
 Final independent design and submission review, a public English YouTube demonstration below three minutes, verified free judge access and entrant registration/eligibility remain open. The sandbox webhook is registered; genuine signature-verified delivery has not yet been recorded. No measured customer ROI, real inventory/fulfillment integration or production readiness is claimed.
+
+## Bounded prompt refinement
+
+The extraction prompt now defines the catalog service taxonomy and asks for null when multiple services or no explicit quantity are present. In one fixed run, all three canonical cases matched source facts: carpet with pet treatment, an unresolved carpet-or-window request, and six windows. All three model outputs were retained and reported zero cost. Catalog prices, clarification and human approval remain server-controlled. This small synthetic check does not establish general request accuracy.

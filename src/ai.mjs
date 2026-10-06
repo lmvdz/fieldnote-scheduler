@@ -55,6 +55,10 @@ export async function draftRequest(env, request, details = {}, fetcher = fetch, 
     const result = await requestAI(env,
       'Extract the fictional service request. Return only service (carpet, window, assembly, cleaning or null), ' +
       'quantity (integer 1-50 or null), pet (boolean), clarified (always false). ' +
+      'Map carpet/rug to carpet, windows to window, and assembly/furniture/chair/desk to assembly. ' +
+      'Use cleaning only for generic cleaning when no specific category is named. ' +
+      'If multiple categories are named, return service null; do not choose an alternative. ' +
+      'Return quantity null when no explicit number is given. ' +
       'Do not invent missing quantities, set rates, calculate totals, set a slot, approve or book.',
       {syntheticDemo: true, request: fixture}, AI_SCOPE_SCHEMA,
       value => validateGroundedAIScope(value, fixture), fetcher, now);
