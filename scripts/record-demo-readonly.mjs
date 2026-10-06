@@ -9,6 +9,18 @@ import {createRequire} from 'node:module';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const run=promisify(execFile),STOP=code=>{throw new Error('RECORDING_STOP_'+code);};
+let recordingStage='BOOT';
+function stage(value){recordingStage=value;console.log(JSON.stringify({stage:value,status:'begin'}));}
+export function checkoutCommand(directory=process.cwd()){return ['-c','safe.directory='+resolve(directory),'rev-parse','HEAD'];}
+export function safeDiagnostic(error){
+ const known=new Set(['ENOENT','EACCES','EPERM','ENOTDIR','MODULE_NOT_FOUND','ERR_MODULE_NOT_FOUND','ERR_INVALID_ARG_TYPE','ERR_INVALID_ARG_VALUE','ERR_PACKAGE_PATH_NOT_EXPORTED','ERR_DLOPEN_FAILED']);
+ let code='UNVERIFIED_RECORDING';
+ if(/^RECORDING_STOP_[A-Z_]+$/.test(error?.message||''))code=error.message;
+ else if(known.has(error?.code))code=error.code;
+ else if(Number.isInteger(error?.code)&&error.code>=0&&error.code<=255)code='SUBPROCESS_EXIT_'+error.code;
+ else if(error?.name==='TimeoutError')code='TIMEOUT';
+ return {stage:recordingStage,code}; // Never raw messages, stderr, command, env or headers.
+}
 const projects={
  merchant:{repo:'merchant-exception-desk',origin:'https://resolution.inkwell.finance',api:'/api/desk',title:'Resolution Desk',audience:'For small online merchants',amount:'34.00'},
  supplypilot:{repo:'supplypilot-procurement',origin:'https://supplypilot.inkwell.finance',api:'/api/workspace',title:'SupplyPilot',audience:'For small-business supply buyers',amount:'201.66'},
@@ -57,20 +69,29 @@ function ffText(value){return value.replace(/[\\':,%\[\]]/g,' ');}
 export function captionLines(value,limit=115){const words=value.split(/\s+/),lines=[''];for(const word of words){const current=lines.at(-1);if(current&&current.length+1+word.length>limit)lines.push(word);else lines[lines.length-1]=current?(current+' '+word):word;}if(lines.length>2||lines.some(line=>line.length>limit))STOP('CAPTION_EXCEEDS_TWO_READABLE_LINES');return lines;}
 
 export async function record(){
+ stage('CONFIGURATION');
  const config=configuration(),{project,cfg,owner,field,expiry,expected,sha}=config;
  // Never pass cookies to dependency installers, Chrome environment or ffmpeg.
  delete process.env.DEMO_OWNER_COOKIE;delete process.env.DEMO_FIELD_SESSION;
- const head=(await run('git',['rev-parse','HEAD'])).stdout.trim();if(head!==sha)STOP('CHECKOUT_IS_NOT_REVIEWED_COMMIT');
+ stage('CHECKOUT_VERIFY');
+ // Container checkout ownership can differ from the recording UID. Trust only
+ // this reviewed working directory for this one read; never set a global wildcard.
+ const head=(await run('git',checkoutCommand())).stdout.trim();if(head!==sha)STOP('CHECKOUT_IS_NOT_REVIEWED_COMMIT');
+ stage('PLAYWRIGHT_LOAD');
  const require=createRequire(resolve(process.env.DEMO_PLAYWRIGHT_HOME||'.','package.json'));
- const {chromium}=require('playwright');const output=resolve('recording-final'),raw=resolve('recording-private');await mkdir(output,{recursive:true});await mkdir(raw,{recursive:true});
+ const {chromium}=require('playwright');stage('OUTPUT_SETUP');const output=resolve('recording-final'),raw=resolve('recording-private');await mkdir(output,{recursive:true});await mkdir(raw,{recursive:true});
  let browser,context,page,video,aborted=false,pageError=false,deskSession='';const scenes=[];const aiEvidence={attempted:false,engine:null,usedFallback:null};let started=0,posts=0;
  const cleanEnv={...process.env};delete cleanEnv.DEMO_OWNER_COOKIE;delete cleanEnv.DEMO_FIELD_SESSION;
  try{
+  stage('BROWSER_START');
   browser=await chromium.launch({headless:true,env:cleanEnv});
+  stage('CONTEXT_SETUP');
   context=await browser.newContext({viewport:{width:1280,height:800},locale:'en-US',timezoneId:'UTC',serviceWorkers:'block',recordVideo:{dir:raw,size:{width:1280,height:800}}});
   const hostname=new URL(cfg.origin).hostname;await context.addCookies([{name:'__Host-inkwell_owner',value:owner,domain:hostname,path:'/',secure:true,httpOnly:true,sameSite:'Lax',expires:expiry},...(project==='fieldnote'?[{name:'fieldnote',value:field,domain:hostname,path:'/',secure:true,httpOnly:true,sameSite:'Lax',expires:expiry}]:[])]);
   async function read(){const response=await context.request.get(cfg.origin+cfg.api,{maxRedirects:0,timeout:15000});if(!response.ok())STOP('AUTHENTICATED_PREFLIGHT_FAILED');const data=await response.json();completedRecord(project,data,expected);return data;}
+  stage('DEPLOYED_SCENE_VERIFY');
   const remoteScene=await context.request.get(cfg.origin+'/site/scene.js',{maxRedirects:0,timeout:15000});if(!remoteScene.ok())STOP('DEPLOYED_SCENE_UNAVAILABLE');const remoteSceneText=await remoteScene.text(),localSceneText=await readFile('site/scene.js','utf8');const sceneHash=createHash('sha256').update(localSceneText).digest('hex');if(createHash('sha256').update(remoteSceneText).digest('hex')!==sceneHash)STOP('DEPLOYED_SCENE_DOES_NOT_MATCH_REVIEWED_SOURCE');
+  stage('COMPLETED_RECORD_PREFLIGHT');
   let snapshot=await read();let target=completedRecord(project,snapshot,expected);
   if(project==='merchant'){
    if(!UUID.test(target.session||''))STOP('ORIGINAL_DESK_SESSION_REQUIRED');
@@ -87,7 +108,7 @@ export async function record(){
    if(!allowedPost(project,url.pathname,body,target)){aborted=true;return route.abort();}
    posts++;return route.continue();
   });
-  page=await context.newPage();video=page.video();started=Date.now();page.on('pageerror',()=>{pageError=true;});page.setDefaultTimeout(15000);
+  stage('PAGE_SETUP');page=await context.newPage();video=page.video();started=Date.now();page.on('pageerror',()=>{pageError=true;});page.setDefaultTimeout(15000);
   async function scene(title,detail,seconds=15){
    await page.waitForFunction(()=>document.body.getAttribute('aria-busy')!=='true');
    if(expiry-Math.floor(Date.now()/1000)<seconds+30)STOP('COOKIE_EXPIRES_DURING_RECORDING');
@@ -95,8 +116,8 @@ export async function record(){
    captionLines(detail);
    scenes.push({at:(Date.now()-started)/1000,title,detail});await page.waitForTimeout(seconds*1000);
   }
-  await page.goto(cfg.origin+'/',{waitUntil:'domcontentloaded',timeout:20000});await page.waitForFunction(version=>document.documentElement.dataset.scene==='ready'&&document.documentElement.dataset.sceneVersion===version,project==='supplypilot'?'mesh-v7p2':'mesh-v7');await scene(cfg.title+' · '+cfg.audience,'Synthetic data · previously verified sandbox outcome · no new payment during this recording',12);
-  await page.goto(cfg.origin+'/app',{waitUntil:'networkidle',timeout:20000});if(await page.locator('#access-key').count())STOP('LOGIN_MUST_NOT_BE_RECORDED');
+  stage('PUBLIC_SCENE');await page.goto(cfg.origin+'/',{waitUntil:'domcontentloaded',timeout:20000});await page.waitForFunction(version=>document.documentElement.dataset.scene==='ready'&&document.documentElement.dataset.sceneVersion===version,project==='supplypilot'?'mesh-v7p2':'mesh-v7');await scene(cfg.title+' · '+cfg.audience,'Synthetic data · previously verified sandbox outcome · no new payment during this recording',12);
+  stage('PRIVATE_SCENE');await page.goto(cfg.origin+'/app',{waitUntil:'networkidle',timeout:20000});if(await page.locator('#access-key').count())STOP('LOGIN_MUST_NOT_BE_RECORDED');
   if(project==='merchant'){
    await scene('An incomplete $198 order','The fulfillment fixture supports a $34 missing-pouch refund. Human approval and server policy retain authority.',24);
    const ai=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/desk'&&r.request().method()==='POST'&&r.request().postDataJSON()?.action==='analyze');
@@ -128,13 +149,13 @@ export async function record(){
   await read();if(aborted||pageError)STOP('UNEXPECTED_REQUEST_OR_BROWSER_ERROR');
   const ending=project==='merchant'?'Evidence, exact consent and safe recovery':project==='supplypilot'?'Deliberate buying, with an inspectable outcome':'A clear scope, followed by a payment-backed spot';
   await scene(ending,'This is a sandbox preview with synthetic data. No live money, real fulfilment or wallet-return UX is claimed.',Math.max(0,155-(Date.now()-started)/1000));
-  await context.close();context=null;const rawPath=await video.path();await browser.close();browser=null;
+  stage('VIDEO_FLUSH');await context.close();context=null;const rawPath=await video.path();await browser.close();browser=null;
   const captionFile=join(output,project+'-captions.json');await writeFile(captionFile,JSON.stringify({project,scenes,ai:aiEvidence,source:'actual hosted browser footage',walletReturnUxVerified:false},null,2));
   const filters=['pad=1280:940:0:0:color=0x0b151a'];const font='/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
   for(let i=0;i<scenes.length;i++){const end=scenes[i+1]?.at||165;filters.push(`drawtext=fontfile=${font}:text='${ffText(scenes[i].title)}':x=34:y=827:fontsize=28:fontcolor=white:enable='between(t,${scenes[i].at.toFixed(2)},${end.toFixed(2)})'`);for(const [line,text]of captionLines(scenes[i].detail).entries())filters.push(`drawtext=fontfile=${font}:text='${ffText(text)}':x=34:y=${line===0?868:896}:fontsize=17:fontcolor=0xc9d7dc:enable='between(t,${scenes[i].at.toFixed(2)},${end.toFixed(2)})'`);}
-  const destination=join(output,project+'-demo-preview.mp4');await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-i',rawPath,'-t','165','-vf',filters.join(','),'-c:v','libx264','-preset','medium','-crf','19','-pix_fmt','yuv420p','-an','-movflags','+faststart',destination],{env:cleanEnv,maxBuffer:1024*1024});
+  stage('VIDEO_ENCODE');const destination=join(output,project+'-demo-preview.mp4');await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-i',rawPath,'-t','165','-vf',filters.join(','),'-c:v','libx264','-preset','medium','-crf','19','-pix_fmt','yuv420p','-an','-movflags','+faststart',destination],{env:cleanEnv,maxBuffer:1024*1024});
   const probe=JSON.parse((await run('ffprobe',['-v','error','-show_entries','format=duration','-of','json',destination],{env:cleanEnv})).stdout);const duration=Number(probe.format?.duration);if(!Number.isFinite(duration)||duration<=0||duration>=180)STOP('VIDEO_MUST_BE_LESS_THAN_THREE_MINUTES');
-  const thumbs=[];for(let i=0;i<scenes.length;i++){const at=Math.min(duration-0.1,scenes[i].at+Math.min(5,Math.max(0.1,((scenes[i+1]?.at||duration)-scenes[i].at)/2)));const thumb=join(output,project+'-storyboard-'+String(i+1).padStart(2,'0')+'.png');await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-ss',String(at),'-i',destination,'-frames:v','1',thumb],{env:cleanEnv,maxBuffer:1024*1024});thumbs.push({file:thumb,at,title:scenes[i].title});}
+  stage('STORYBOARD');const thumbs=[];for(let i=0;i<scenes.length;i++){const at=Math.min(duration-0.1,scenes[i].at+Math.min(5,Math.max(0.1,((scenes[i+1]?.at||duration)-scenes[i].at)/2)));const thumb=join(output,project+'-storyboard-'+String(i+1).padStart(2,'0')+'.png');await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-ss',String(at),'-i',destination,'-frames:v','1',thumb],{env:cleanEnv,maxBuffer:1024*1024});thumbs.push({file:thumb,at,title:scenes[i].title});}
   await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-i',destination,'-vf',`fps=1/${Math.max(1,duration/9)},scale=426:-1,tile=3x3`,'-frames:v','1',join(output,project+'-contact-sheet.png')],{env:cleanEnv,maxBuffer:1024*1024});
   await writeFile(join(output,project+'-manifest.json'),JSON.stringify({project,origin:cfg.origin,reviewedCommit:sha,deployedSceneSha256:sceneHash,durationSeconds:duration,ai:aiEvidence,storyboard:thumbs.map(t=>({file:basename(t.file),at:t.at,title:t.title})),expectedCapture:expected.capture,expectedRecord:expected.record,financialMutations:'none; optional prevalidated completed-refund replay only',walletReturnUxVerified:false,previewOnly:true},null,2));
   console.log(JSON.stringify({project,status:'PREVIEW_RECORDED',durationSeconds:duration,previewOnly:true}));
@@ -150,6 +171,8 @@ export async function selfTest(){
  assert.equal(allowedPost('supplypilot','/api/workspace',{action:'checkout',approvalId:'fixture'},{}),false);
  assert.equal(allowedPost('merchant','/api/desk',{action:'approve',caseId:'EX-1042',mode:'sandbox',amountCents:3400,approved:true},{...op,status:'uncertain'}),false);
  const wrapped=captionLines('This is a deliberately long but readable description of the recorded sandbox workflow and its exact completed receipt; its second sentence should wrap to the following caption line without clipping.');assert.equal(wrapped.length,2);assert.ok(wrapped.every(line=>line.length<=115));
+ const checkout=checkoutCommand('/reviewed/checkout');assert.deepEqual(checkout,['-c','safe.directory='+resolve('/reviewed/checkout'),'rev-parse','HEAD']);assert.ok(!checkout.some(value=>value==='--global'||value.includes('*')));
+ const hidden='PRIVATE_AUTH_SENTINEL';assert.deepEqual(safeDiagnostic({code:128,message:hidden,stderr:hidden}),{stage:'BOOT',code:'SUBPROCESS_EXIT_128'});assert.deepEqual(safeDiagnostic({code:'MODULE_NOT_FOUND',message:hidden}),{stage:'BOOT',code:'MODULE_NOT_FOUND'});assert.ok(!JSON.stringify(safeDiagnostic({message:hidden,command:hidden,headers:{cookie:hidden}})).includes(hidden));
  console.log('Recording guard self-test passed. No browser, cookies, GitHub secrets or network were used.');
 }
-if(typeof process!=='undefined'&&process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){try{if(process.argv.includes('--self-test'))await selfTest();else if(process.argv.includes('--execute'))await record();else console.log('Prepared only. --self-test checks guards; --execute requires reviewed commit, short project owner cookie and exact completed-record IDs. No GitHub secret is created or deleted by this script.');}catch(error){const message=/^RECORDING_STOP_[A-Z_]+$/.test(error.message||'')?error.message:'UNVERIFIED_RECORDING';console.error('Recording stopped: '+message+'. No private request, token or error body is printed.');process.exitCode=1;}}
+if(typeof process!=='undefined'&&process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){try{if(process.argv.includes('--self-test'))await selfTest();else if(process.argv.includes('--execute'))await record();else console.log('Prepared only. --self-test checks guards; --execute requires reviewed commit, short project owner cookie and exact completed-record IDs. No GitHub secret is created or deleted by this script.');}catch(error){console.error(JSON.stringify({status:'RECORDING_STOPPED',...safeDiagnostic(error)}));process.exitCode=1;}}

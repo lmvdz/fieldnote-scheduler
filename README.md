@@ -47,9 +47,9 @@ When the owner configures PAYPAL_MODE=sandbox, PAYPAL_CLIENT_ID, and PAYPAL_CLIE
 - Capture timeouts retain the lock in a reconciliation state. Reconciliation reads PayPal and retries the same capture key only if PayPal still reports APPROVED
 - Changing adapter mode during an in-flight operation fails closed
 
-Webhook testing requires a reachable, signature-verified listener and an authenticated application hosting design. Foreground capture can still reconcile payment when the app is open.
+Webhook testing requires a reachable, signature-verified listener and an authenticated application hosting design. Foreground capture can still reconcile payment when the app is open. The observed genuine webhook follow-up is documented in [verification evidence](docs/VERIFICATION.md); wallet-return UX is a separate open path.
 
-The hosted application completed an actual $155 sandbox test-card capture, verified against PayPal, and recorded one durable booking. Duplicate capture reused the same booking. Wallet buyer approval/return UX and actual webhook delivery remain unverified. Mock transport/recovery tests are separate evidence. Refunds and post-capture cancellation of sandbox bookings are intentionally blocked until a real refund workflow exists.
+The hosted application completed an actual $155 sandbox test-card capture, verified against PayPal, and recorded one durable booking. Duplicate capture reused the same booking. Wallet buyer approval/return UX remains unverified. A genuine existing sandbox capture event was subsequently delivered through the hosted signature-verifying webhook path and recorded in the payment ledger after an official resend, preserving one order and one booked slot with no new payment. See `evidence/hosted-webhook.json`; the earlier checkout artifact remains a historical snapshot. Mock transport/recovery tests are separate evidence. Refunds and post-capture cancellation of sandbox bookings are intentionally blocked until a real refund workflow exists.
 
 Official API references:
 - https://developer.paypal.com/api/orders/v2
@@ -83,7 +83,7 @@ The primary always has a zero-price provider filter, including when its model is
 
 There are at most two free-primary attempts for transient HTTP/transport failures and one opted-in paid attempt, each with a 6-second timeout and 256-token output limit (1024 total tokens for the explicitly configured free Liquid reasoning model). Inputs and response bytes are bounded. Malformed JSON, extra fields, tool calls, refusals, truncated output and invalid values are rejected. Errors shown to users contain no provider bodies, keys or raw transport details. Model output never authorizes a payment or changes server policy.
 
-Live OpenRouter inference was observed on October 5, 2026 for a built-in synthetic example, with validated JSON and zero reported cost. Paid fallback remained disabled. Local mocks cover failure and policy boundaries. The public overview and protected workspace are deployed to this project’s custom domain. The hosted application completed an actual $155 sandbox test-card capture, verified against PayPal, and recorded one durable booking. Duplicate capture reused the same booking. Wallet buyer approval/return UX and actual webhook delivery remain unverified.
+Live OpenRouter inference was observed on October 5, 2026 for a built-in synthetic example, with validated JSON and zero reported cost. Paid fallback remained disabled. Local mocks cover failure and policy boundaries. The public overview and protected workspace are deployed to this project’s custom domain. The hosted application completed an actual $155 sandbox test-card capture, verified against PayPal, and recorded one durable booking. Duplicate capture reused the same booking. Wallet buyer approval/return UX remains unverified. A genuine existing sandbox capture event was subsequently delivered through the hosted signature-verifying webhook path and recorded in the payment ledger after an official resend, preserving one order and one booked slot with no new payment. See `evidence/hosted-webhook.json`; the earlier checkout artifact remains a historical snapshot.
 
 ### Scheduler input boundary
 
@@ -133,3 +133,4 @@ The schema is maintained in `db/schema.ts`, with an inspected equivalent schema-
 MIT; see [LICENSE](LICENSE). Third-party APIs and services remain subject to their own terms.
 
 PayPal transports reject redirects before parsing provider bodies. Checkout capture requests ask for a full representation; a minimal successful capture is recovered by reading the same order once before exact verification. This recovery never creates a second capture request.
+
