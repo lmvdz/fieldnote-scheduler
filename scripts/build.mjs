@@ -1,4 +1,6 @@
 import {readFile,writeFile,mkdir,readdir,rm} from 'node:fs/promises';
 const types={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'application/javascript; charset=utf-8',svg:'image/svg+xml'};const assets={};for(const file of await readdir('public'))assets['/'+file]={body:await readFile('public/'+file,'utf8'),type:types[file.split('.').pop()]||'text/plain'};
-let bundle='const assets='+JSON.stringify(assets)+';\n';for(const file of ['src/domain.mjs','src/db.mjs','src/paypal.mjs','src/ai.mjs','worker/index.js']){let s=await readFile(file,'utf8');s=s.replace(/^import .*?;\s*$/gm,'').replace(/export (?=(?:async )?function|const)/g,'');bundle+='\n'+s;}
+let bundle='const assets='+JSON.stringify(assets)+';\n';for(const file of ['src/domain.mjs','src/db.mjs','src/paypal.mjs','src/ai-provider.mjs','src/ai.mjs','worker/index.js']){let s=await readFile(file,'utf8');s=s.replace(/^import .*?;\s*$/gm,'').replace(/export (?=(?:async )?function|const)/g,'');bundle+='\n'+s;}
 await mkdir('dist/server',{recursive:true});await writeFile('dist/server/index.js',bundle);console.log('Built self-contained Worker with static assets.');
+
+await import('./finish-site.mjs');

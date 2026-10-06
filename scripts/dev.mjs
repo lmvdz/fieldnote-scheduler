@@ -1,3 +1,5 @@
+import {loadPrivateConfig} from './private-config.mjs';
+await loadPrivateConfig();
 import {createServer} from 'node:http';import {readFileSync} from 'node:fs';import {sqliteBinding} from './sqlite-adapter.mjs';
 const source=readFileSync('dist/server/index.js','utf8');const worker=(await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;const env={...process.env,DB:sqliteBinding('.local/fieldnote.sqlite')};const port=Number(process.env.PORT||4303);
 createServer(async(req,res)=>{try{const chunks=[];for await(const c of req)chunks.push(c);const request=new Request('http://'+req.headers.host+req.url,{method:req.method,headers:req.headers,...(!['GET','HEAD'].includes(req.method)?{body:Buffer.concat(chunks)}:{})});const r=await worker.fetch(request,env);res.writeHead(r.status,Object.fromEntries(r.headers));res.end(Buffer.from(await r.arrayBuffer()));}catch(e){console.error(e);res.writeHead(500);res.end('Local server error');}}).listen(port,'0.0.0.0',()=>console.log('Fieldnote local preview on http://localhost:'+port));
