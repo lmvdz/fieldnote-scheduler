@@ -57,8 +57,11 @@ jobs:
           DEMO_EXPECTED_ORDER: ${{ inputs.expected_order }}
           DEMO_OWNER_COOKIE: ${{ secrets.DEMO_OWNER_COOKIE }}
           DEMO_FIELD_SESSION: ${{ secrets.DEMO_FIELD_SESSION }}
-          DEMO_PLAYWRIGHT_HOME: ${{ runner.temp }}/demo-playwright
-        run: node scripts/record-demo-readonly.mjs --execute
+        run: |
+          # Expand the container's actual path, matching the install step exactly.
+          # runner.temp expressions may point to the host's /home/runner location.
+          export DEMO_PLAYWRIGHT_HOME="$RUNNER_TEMP/demo-playwright"
+          node scripts/record-demo-readonly.mjs --execute
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: demo-preview-${{ inputs.project }}
