@@ -21,6 +21,9 @@ on:
       expected_order:
         description: Actual Supply or Field order ID; blank for Merchant
         required: false
+      field_webhook_proof:
+        description: Sanitized retained verified Fieldnote webhook proof
+        required: false
 permissions:
   contents: read
 concurrency:
@@ -48,13 +51,18 @@ jobs:
           apt-get update -qq
           apt-get install -y -qq ffmpeg fonts-dejavu-core
           npm install --prefix "$RUNNER_TEMP/demo-playwright" --no-save --ignore-scripts playwright@1.63.0
-      - name: Record prevalidated completed sandbox state
+      - name: Build isolated demo runtime without credentials
+        run: |
+          node --input-type=module -e "import('node:sqlite').then(() => console.log('SQLite runtime available'))"
+          node scripts/build.mjs
+      - name: Record guarded demonstration and existing sandbox evidence
         env:
           DEMO_PROJECT: ${{ inputs.project }}
           DEMO_REVIEWED_SHA: ${{ inputs.reviewed_sha }}
           DEMO_EXPECTED_CAPTURE: ${{ inputs.expected_capture }}
           DEMO_EXPECTED_RECORD: ${{ inputs.expected_record }}
           DEMO_EXPECTED_ORDER: ${{ inputs.expected_order }}
+          DEMO_FIELD_WEBHOOK_PROOF: ${{ inputs.field_webhook_proof }}
           DEMO_OWNER_COOKIE: ${{ secrets.DEMO_OWNER_COOKIE }}
           DEMO_FIELD_SESSION: ${{ secrets.DEMO_FIELD_SESSION }}
         run: |
